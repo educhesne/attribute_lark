@@ -2,7 +2,6 @@ from copy import deepcopy
 import sys
 from types import ModuleType
 from typing import Callable, Collection, Dict, Optional, TYPE_CHECKING, List
-from ast import Module as AstModule
 
 if TYPE_CHECKING:
     from .lark import PostLex
@@ -19,6 +18,7 @@ from .utils import Serialize
 from .lexer import TerminalDef, Token
 
 ###{standalone
+from ast import Module as AstModule
 
 _ParserArgType: 'TypeAlias' = 'Literal["earley", "lalr", "cyk", "auto"]'
 _LexerArgType: 'TypeAlias' = 'Union[Literal["auto", "basic", "contextual", "dynamic", "dynamic_complete"], Type[Lexer]]'
@@ -79,11 +79,11 @@ class ParserConf(Serialize):
     parser_type: _ParserArgType
     python_header: Optional[AstModule]
 
-    def __init__(self, rules: List['Rule'], callbacks: ParserCallbacks, start: List[str], python_header: Optional[AstModule]):
+    def __init__(self, rules: List['Rule'], callbacks: ParserCallbacks, start: List[str], python_header: Optional[AstModule]=None):
         assert isinstance(start, list)
         self.rules = rules
         self.callbacks = callbacks
         self.start = start
-        self.python_header = python_header or None
+        self.python_header = python_header
 
 ###}

@@ -2,10 +2,10 @@ from typing import Optional, Tuple, ClassVar, Sequence
 
 from .utils import Serialize
 
+###{standalone
 import ast
 from ast import Expression as AstExpression
 
-###{standalone
 TOKEN_DEFAULT_PRIORITY = 0
 
 
@@ -121,9 +121,9 @@ class Rule(Serialize):
         expansion : a list of symbols
         order : index of this expansion amongst all rules of the same name
     """
-    __slots__ = ('origin', 'expansion', 'alias', 'options', 'order', '_hash')
+    __slots__ = ('origin', 'expansion', 'alias', 'options', 'ast', 'order', '_hash')
 
-    __serialize_fields__ = 'origin', 'expansion', 'order', 'alias', 'options'
+    __serialize_fields__ = 'origin', 'expansion', 'order', 'alias', 'options', 'ast'
     __serialize_namespace__ = Terminal, NonTerminal, RuleOptions
 
     origin: NonTerminal

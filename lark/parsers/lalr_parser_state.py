@@ -171,6 +171,10 @@ class ParserState(Generic[StateT]):
     @property
     def position(self) -> StateT:
         return self.state_stack[-1]
+    
+    @property
+    def attribute(self) -> Any:
+        return self.attribute_stack[-1] if self.attribute_stack else None
 
     # Necessary for match_examples() to work
     def __eq__(self, other) -> bool:
@@ -245,5 +249,5 @@ class ParserState(Generic[StateT]):
                 attribute_stack.append(attribute)
 
                 if is_end and state_stack[-1] == end_state:
-                    return value_stack[-1], attribute_stack[-1]
+                    return value_stack[-1]
 ###}

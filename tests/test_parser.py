@@ -2632,7 +2632,7 @@ def _make_parser_test(LEXER, PARSER):
             ip = parser.parse_interactive("aba")
             ip.exhaust_lexer()
             # Previously `accepts` would call `SYMTransformer.SYM` with `Token('SYM', '')`, which would cause an error.
-            self.assertEqual(ip.accepts(), {"$END", "SYM"})
+            self.assertEqual(ip.accepts(), {Token("$END", '(.*?)'), Token("SYM", '(.*?)')})
             res = ip.feed_eof()
             self.assertEqual(res.children, [1, 2, 1])
 

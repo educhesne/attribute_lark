@@ -1101,7 +1101,7 @@ def _translate_parser_exception(parse, e):
 
 def _parse_grammar(text, name, start='start'):
     try:
-        tree, _ = _get_parser().parse(text + '\n', start)
+        tree = _get_parser().parse(text + '\n', start)
     except UnexpectedCharacters as e:
         context = e.get_context(text)
         raise GrammarError("Unexpected input at line %d column %d in %s: \n\n%s" %
@@ -1129,14 +1129,13 @@ def _error_repr(error):
 def _search_interactive_parser(interactive_parser, predicate):
     def expand(node):
         path, p = node
-        for choice in p.choices():
-            t = Token(choice, '')
+        for t in p.choices():
             try:
                 new_p = p.feed_token(t)
             except ParseError:    # Illegal
                 pass
             else:
-                yield path + (choice,), new_p
+                yield path + (t.type,), new_p
 
     for path, p in bfs_all_unique([((), interactive_parser)], expand):
         if predicate(p):
@@ -1148,7 +1147,7 @@ def find_grammar_errors(text: str, start: str='start') -> List[Tuple[UnexpectedI
         errors.append((e, _error_repr(e)))
 
         # recover to a new line
-        token_path, _ = _search_interactive_parser(e.interactive_parser.as_immutable(), lambda p: '_NL' in p.choices())
+        token_path, _ = _search_interactive_parser(e.interactive_parser.as_immutable(), lambda p: Token('_NL', '(.*?)') in p.choices())
         for token_type in token_path:
             e.interactive_parser.feed_token(Token(token_type, ''))
         e.interactive_parser.feed_token(Token('_NL', '\n'))

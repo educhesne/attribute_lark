@@ -90,7 +90,7 @@ class TreeMatcher:
         # XXX TODO calling compile twice returns different results!
         assert not parser.options.maybe_placeholders
         # XXX TODO: we just ignore the potential existence of a postlexer
-        self.tokens, rules, _extra = parser.grammar.compile(parser.options.start, set())
+        self.tokens, rules, _extra, _ = parser.grammar.compile(parser.options.start, set())
 
         self.rules_for_root = defaultdict(list)
 
