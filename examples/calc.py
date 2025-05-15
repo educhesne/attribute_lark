@@ -59,7 +59,7 @@ class CalculateTree(Transformer):
             raise Exception("Variable not found: %s" % name)
 
 
-calc_parser = Lark(calc_grammar, parser='lalr', transformer=CalculateTree())
+calc_parser = Lark(calc_grammar, transformer=CalculateTree())
 calc = calc_parser.parse
 
 

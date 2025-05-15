@@ -30,7 +30,7 @@ parser = Lark(r"""
         %import common.NEWLINE -> _NL
         %import common.WS_INLINE
         %ignore WS_INLINE
-    """, parser="lalr")
+    """)
 
 
 sample_conf = """

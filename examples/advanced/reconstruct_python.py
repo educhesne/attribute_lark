@@ -14,7 +14,7 @@ from lark.indenter import PythonIndenter
 
 # Official Python grammar by Lark
 python_parser3 = Lark.open_from_package('lark', 'python.lark', ['grammars'],
-                                        parser='lalr', postlex=PythonIndenter(), start='file_input',
+                                        postlex=PythonIndenter(), start='file_input',
                                         maybe_placeholders=False    # Necessary for reconstructor
                                         )
 

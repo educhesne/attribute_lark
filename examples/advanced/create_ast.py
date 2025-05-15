@@ -97,8 +97,7 @@ parser = Lark("""
     %import python (NAME, STRING, DEC_NUMBER)
     %import common.WS
     %ignore WS
-    """,
-    parser="lalr",
+    """
 )
 
 transformer = ast_utils.create_transformer(this_module, ToAst())

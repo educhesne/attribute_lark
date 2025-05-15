@@ -22,7 +22,7 @@ def _remove_ws(s):
 class TestReconstructor(TestCase):
 
     def assert_reconstruct(self, grammar, code, **options):
-        parser = Lark(grammar, parser='lalr', maybe_placeholders=False, **options)
+        parser = Lark(grammar, maybe_placeholders=False, **options)
         tree = parser.parse(code)
         new = Reconstructor(parser).reconstruct(tree)
         self.assertEqual(_remove_ws(code), _remove_ws(new))
@@ -137,7 +137,7 @@ class TestReconstructor(TestCase):
             %ignore WS
         """
 
-        json_parser = Lark(json_grammar, parser='lalr', maybe_placeholders=False)
+        json_parser = Lark(json_grammar, maybe_placeholders=False)
         tree = json_parser.parse(test_json)
 
         new_json = Reconstructor(json_parser).reconstruct(tree)
@@ -182,8 +182,8 @@ class TestReconstructor(TestCase):
         keyword x += y
         """
 
-        l1 = Lark(g1, parser='lalr', maybe_placeholders=False)
-        l2 = Lark(g2, parser='lalr', maybe_placeholders=False)
+        l1 = Lark(g1, maybe_placeholders=False)
+        l2 = Lark(g2, maybe_placeholders=False)
         r = Reconstructor(l2)
 
         tree = l1.parse(code)

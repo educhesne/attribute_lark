@@ -18,10 +18,10 @@ from lark.indenter import PythonIndenter
 kwargs = dict(postlex=PythonIndenter(), start='file_input')
 
 # Official Python grammar by Lark
-python_parser3 = Lark.open_from_package('lark', 'python.lark', ['grammars'], parser='lalr', **kwargs)
+python_parser3 = Lark.open_from_package('lark', 'python.lark', ['grammars'], **kwargs)
 
 # Local Python2 grammar
-python_parser2 = Lark.open('python2.lark', rel_to=__file__, parser='lalr', **kwargs)
+python_parser2 = Lark.open('python2.lark', rel_to=__file__, **kwargs)
 
 try:
     xrange

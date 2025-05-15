@@ -41,7 +41,7 @@ class TreeIndenter(Indenter):
     DEDENT_type = '_DEDENT'
     tab_len = 8
 
-parser = Lark(tree_grammar, parser='lalr', postlex=TreeIndenter())
+parser = Lark(tree_grammar, postlex=TreeIndenter())
 
 test_tree = """
 a

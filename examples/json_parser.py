@@ -55,7 +55,7 @@ class TreeToJson(Transformer):
 #     return TreeToJson().transform(json_parser.parse(x))
 
 ### Create the JSON parser with Lark, using the LALR algorithm
-json_parser = Lark(json_grammar, parser='lalr',
+json_parser = Lark(json_grammar,
                    # Using the basic lexer isn't required, and isn't usually recommended.
                    # But, it's good enough for JSON, and it's slightly faster.
                    lexer='basic',

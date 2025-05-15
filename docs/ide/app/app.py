@@ -18,9 +18,7 @@ class App(html5.Div):
 					<option disabled selected>Examples</option>
 				</select>
 				<select [name]="parser">
-					<option value="earley" selected>Earley (default)</option>
-					<option value="lalr">LALR</option>
-					<option value="cyk">CYK</option>
+					<option value="lalr" selected>LALR</option>
 				</select>
 			</menu>
 			<div id="inputs">

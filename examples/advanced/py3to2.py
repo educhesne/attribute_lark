@@ -33,7 +33,7 @@ TEMPLATE_NAME: "$" NAME
 %ignore COMMENT
 """
 
-parser = Lark(TEMPLATED_PYTHON, parser='lalr', start=['single_input', 'file_input', 'eval_input', 'template_start'], postlex=PythonIndenter(), maybe_placeholders=False)
+parser = Lark(TEMPLATED_PYTHON, start=['single_input', 'file_input', 'eval_input', 'template_start'], postlex=PythonIndenter(), maybe_placeholders=False)
 
 
 def parse_template(s):

@@ -29,7 +29,7 @@ test_json = '''
 
 def test_lalr():
 
-    json_parser = Lark(json_grammar, parser='lalr', maybe_placeholders=False)
+    json_parser = Lark(json_grammar, maybe_placeholders=False)
     tree = json_parser.parse(test_json)
 
     new_json = Reconstructor(json_parser).reconstruct(tree)

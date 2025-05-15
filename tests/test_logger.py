@@ -30,7 +30,7 @@ class Testlogger(TestCase):
         a: "a"
         '''
         with capture_log() as log:
-            Lark(collision_grammar, parser='lalr', debug=True)
+            Lark(collision_grammar, debug=True)
 
         log = log.getvalue()
         # since there are conflicts about A
@@ -45,7 +45,7 @@ class Testlogger(TestCase):
         a: "a"
         '''
         with capture_log() as log:
-            Lark(collision_grammar, parser='lalr', debug=False)
+            Lark(collision_grammar, debug=False)
         log = log.getvalue()
         # no log message
         self.assertEqual(log, "")
@@ -58,7 +58,7 @@ class Testlogger(TestCase):
         a: "a"
         '''
         with capture_log() as log:
-            Lark(collision_grammar, parser='lalr', debug=True)
+            Lark(collision_grammar, debug=True)
         log = log.getvalue()
         # no log message
         self.assertEqual(len(log), 0)
@@ -72,7 +72,7 @@ class Testlogger(TestCase):
         B: /(a|b)+/
         '''
         with capture_log() as log:
-            Lark(collision_grammar, parser='lalr')
+            Lark(collision_grammar)
 
         log = log.getvalue()
         # since there are conflicts between A and B
@@ -89,7 +89,7 @@ class Testlogger(TestCase):
         B: /(a|b)+/
         '''
         with capture_log() as log:
-            Lark(collision_grammar, parser='lalr')
+            Lark(collision_grammar)
 
         log = log.getvalue()
         self.assertEqual(log, "")

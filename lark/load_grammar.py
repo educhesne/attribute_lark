@@ -1072,7 +1072,6 @@ def _get_parser():
         lexer_conf = LexerConf(terminals, re, ['WS', 'COMMENT', 'BACKSLASH'])
         parser_conf = ParserConf(rules, callback, ['start'], None)
         lexer_conf.lexer_type = 'basic'
-        parser_conf.parser_type = 'lalr'
         _get_parser.cache = ParsingFrontend(lexer_conf, parser_conf, None)
         return _get_parser.cache
 

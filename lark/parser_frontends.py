@@ -5,7 +5,7 @@ from .utils import get_regexp_width, Serialize, TextOrSlice, TextSlice
 from .lexer import LexerThread, BasicLexer, ContextualLexer, Lexer
 from .parsers.lalr_parser import LALR_Parser
 from .tree import Tree
-from .common import LexerConf, ParserConf, _ParserArgType, _LexerArgType
+from .common import LexerConf, ParserConf, _LexerArgType
 
 if TYPE_CHECKING:
     from .parsers.lalr_analysis import ParseTableBase
@@ -49,9 +49,6 @@ def _deserialize_parsing_frontend(data, memo, lexer_conf, callbacks, options):
     return ParsingFrontend(lexer_conf, parser_conf, options, parser=parser)
 
 
-_parser_creators: 'Dict[str, Callable[[LexerConf, Any, Any], Any]]' = {}
-
-
 class ParsingFrontend(Serialize):
     __serialize_fields__ = 'lexer_conf', 'parser_conf', 'parser'
 
@@ -68,11 +65,7 @@ class ParsingFrontend(Serialize):
         if parser:  # From cache
             self.parser = parser
         else:
-            create_parser = _parser_creators.get(parser_conf.parser_type)
-            assert create_parser is not None, "{} is not supported in standalone mode".format(
-                    parser_conf.parser_type
-                )
-            self.parser = create_parser(lexer_conf, parser_conf, options)
+            self.parser = create_lalr_parser(lexer_conf, parser_conf, options)
 
         # Set-up lexer
         lexer_type = lexer_conf.lexer_type
@@ -125,19 +118,14 @@ class ParsingFrontend(Serialize):
         # TODO BREAK - Change text from Optional[str] to text: str = ''.
         #   Would break behavior of exhaust_lexer(), which currently raises TypeError, and after the change would just return []
         chosen_start = self._verify_start(start)
-        if self.parser_conf.parser_type != 'lalr':
-            raise ConfigurationError("parse_interactive() currently only works with parser='lalr' ")
         stream = self._make_lexer_thread(text)
         return self.parser.parse_interactive(stream, chosen_start)
 
 
-def _validate_frontend_args(parser, lexer) -> None:
-    assert_config(parser, ('lalr'))
+def _validate_frontend_args(lexer) -> None:
     if not isinstance(lexer, type):     # not custom lexer?
-        expected = {
-            'lalr': ('basic', 'contextual'),
-         }[parser]
-        assert_config(lexer, expected, 'Parser %r does not support lexer %%r, expected one of %%s' % parser)
+        expected = ('basic', 'contextual')
+        assert_config(lexer, expected, 'Parser lalr does not support lexer %%r, expected one of %%s')
 
 
 def _get_lexer_callbacks(transformer, terminals):
@@ -176,12 +164,9 @@ def create_lalr_parser(lexer_conf: LexerConf, parser_conf: ParserConf, options=N
     cls = (options and options._plugins.get('LALR_Parser')) or LALR_Parser
     return cls(parser_conf, debug=debug, strict=strict)
 
-_parser_creators['lalr'] = create_lalr_parser
-
 ###}
 
 def _construct_parsing_frontend(
-        parser_type: _ParserArgType,
         lexer_type: _LexerArgType,
         lexer_conf,
         parser_conf,
@@ -189,6 +174,5 @@ def _construct_parsing_frontend(
 ):
     assert isinstance(lexer_conf, LexerConf)
     assert isinstance(parser_conf, ParserConf)
-    parser_conf.parser_type = parser_type
     lexer_conf.lexer_type = lexer_type
     return ParsingFrontend(lexer_conf, parser_conf, options)

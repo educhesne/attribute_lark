@@ -232,7 +232,7 @@ class TestPythonParser(TestCase):
     @classmethod
     def setUpClass(cls):
         cls.python_parser = Lark.open_from_package(
-            "lark", "python.lark", ("grammars",), parser='lalr',
+            "lark", "python.lark", ("grammars",),
             postlex=PythonIndenter(), start=["number", "file_input"])
 
     def _test_parsed_is_this_terminal(self, text, terminal, start):

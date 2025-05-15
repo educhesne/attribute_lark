@@ -48,7 +48,7 @@ class TestParsers(unittest.TestCase):
                a: a | "a"
             """
 
-        self.assertRaises(GrammarError, Lark, g, parser='lalr')
+        self.assertRaises(GrammarError, Lark, g)
 
         # TODO: should it? shouldn't it?
         # l = Lark(g, parser='earley', lexer='dynamic')
@@ -147,14 +147,14 @@ class TestParsers(unittest.TestCase):
             a : A
             A: "x"
             """
-        p = Lark(g, parser='lalr')
+        p = Lark(g)
         r = T(False).transform(p.parse("x"))
         self.assertEqual( r.children, ["x!"] )
         r = T().transform(p.parse("x"))
         self.assertEqual( r.children, ["X!"] )
 
         # Test internal transformer
-        p = Lark(g, parser='lalr', transformer=T())
+        p = Lark(g, transformer=T())
         r = p.parse("x")
         self.assertEqual( r.children, ["X!"] )
 
@@ -176,7 +176,7 @@ class TestParsers(unittest.TestCase):
                     return int(token)
 
 
-            parser = Lark(g, parser='lalr', transformer=T())
+            parser = Lark(g, transformer=T())
             result = parser.parse(text)
             self.assertEqual(result, expected)
 
@@ -205,7 +205,7 @@ class TestParsers(unittest.TestCase):
                     g = Lark(r"""start: a+
                                 a : "x" _NL?
                                 _NL: /\n/+
-                            """, parser='lalr', transformer=T() if internal else None, propagate_positions=True)
+                            """, transformer=T() if internal else None, propagate_positions=True)
                 except NotImplementedError:
                     assert internal
                     continue
@@ -248,14 +248,14 @@ class TestParsers(unittest.TestCase):
         # Test regular
         g = Lark("""start: a
                     a : "x"
-                 """, parser='lalr')
+                 """)
         r = T().transform(g.parse("x"))
         self.assertEqual( r.children, ["<a>"] )
 
 
         g = Lark("""start: a
                     a : "x"
-                 """, parser='lalr', transformer=T())
+                 """, transformer=T())
         r = g.parse("x")
         self.assertEqual( r.children, ["<a>"] )
 
@@ -264,7 +264,7 @@ class TestParsers(unittest.TestCase):
         g = Lark("""start: a
                     ?a : b
                     b : "x"
-                 """, parser='lalr')
+                 """)
         r = T().transform(g.parse("x"))
         self.assertEqual( r.children, ["<b>"] )
 
@@ -272,7 +272,7 @@ class TestParsers(unittest.TestCase):
         g = Lark("""start: a
                     ?a : b
                     b : "x"
-                 """, parser='lalr', transformer=T())
+                 """, transformer=T())
         r = g.parse("x")
         self.assertEqual( r.children, ["<b>"] )
 
@@ -280,7 +280,7 @@ class TestParsers(unittest.TestCase):
         g = Lark("""start: a
                     ?a : b b -> c
                     b : "x"
-                 """, parser='lalr')
+                 """)
         r = T().transform(g.parse("xx"))
         self.assertEqual( r.children, ["<c>"] )
 
@@ -288,7 +288,7 @@ class TestParsers(unittest.TestCase):
         g = Lark("""start: a
                     ?a : b b -> c
                     b : "x"
-                 """, parser='lalr', transformer=T())
+                 """, transformer=T())
         r = g.parse("xx")
         self.assertEqual( r.children, ["<c>"] )
 
@@ -329,7 +329,7 @@ class TestParsers(unittest.TestCase):
                 g = Lark("""start: a b
                             a : "x"
                             b : "y"
-                        """, parser='lalr', transformer=t if internal else None)
+                        """, transformer=t if internal else None)
                 r = g.parse("xy")
                 if not internal:
                     r = t.transform(r)
@@ -352,7 +352,7 @@ class TestParsers(unittest.TestCase):
         p = Lark("""
         start: A
         %declare A
-        """, parser='lalr', lexer=OldCustomLexer)
+        """, lexer=OldCustomLexer)
 
         r = p.parse('')
         self.assertEqual(r, Tree('start', [Token('A', 'A')]))
@@ -364,7 +364,7 @@ class TestParsers(unittest.TestCase):
         g = """start: %s
                   %s""" % (' '.join(tokens), '\n'.join("%s: %s"%x for x in tokens.items()))
 
-        p = Lark(g, parser='lalr')
+        p = Lark(g)
 
 class CustomLexerNew(Lexer):
     """
@@ -474,7 +474,7 @@ class DualBytesLark:
         if self.bytes_lark is not None:
             self.bytes_lark.load(f)
 
-def _make_parser_test(LEXER, PARSER):
+def _make_parser_test(LEXER):
     lexer_class_or_name = {
         'custom_new': CustomLexerNew,
         'custom_old1': CustomLexerOld1,
@@ -482,9 +482,9 @@ def _make_parser_test(LEXER, PARSER):
     }.get(LEXER, LEXER)
 
     def _Lark(grammar, **kwargs):
-        return Lark(grammar, lexer=lexer_class_or_name, parser=PARSER, propagate_positions=True, **kwargs)
+        return Lark(grammar, lexer=lexer_class_or_name, propagate_positions=True, **kwargs)
     def _Lark_open(gfilename, **kwargs):
-        return Lark.open(gfilename, lexer=lexer_class_or_name, parser=PARSER, propagate_positions=True, **kwargs)
+        return Lark.open(gfilename, lexer=lexer_class_or_name   , propagate_positions=True, **kwargs)
 
     class _TestParser(unittest.TestCase):
         def test_basic1(self):
@@ -1698,7 +1698,7 @@ def _make_parser_test(LEXER, PARSER):
             parser = _Lark(grammar)
 
 
-        @unittest.skipIf(PARSER!='lalr' or LEXER == 'custom_old0', "Serialize currently only works for LALR parsers without custom lexers (though it should be easy to extend)")
+        @unittest.skipIf(LEXER == 'custom_old0', "Serialize currently only works for LALR parsers without custom lexers (though it should be easy to extend)")
         def test_serialize(self):
             grammar = """
                 start: _ANY b "C"
@@ -1803,7 +1803,6 @@ def _make_parser_test(LEXER, PARSER):
             """
             self.assertRaises((GrammarError, LexError, re.error), _Lark, g, regex=True)
 
-        @unittest.skipIf(PARSER != 'lalr', "interactive_parser is only implemented for LALR at the moment")
         def test_parser_interactive_parser(self):
 
             g = _Lark(r'''
@@ -1840,7 +1839,6 @@ def _make_parser_test(LEXER, PARSER):
             res = ip_copy.feed_eof()
             self.assertEqual(res, Tree('start', ['a', 'b', 'b']))
 
-        @unittest.skipIf(PARSER != 'lalr', "interactive_parser error handling only works with LALR for now")
         def test_error_with_interactive_parser(self):
             def ignore_errors(e):
                 if isinstance(e, UnexpectedCharacters):
@@ -1931,7 +1929,6 @@ def _make_parser_test(LEXER, PARSER):
             b = parser.parse(s)
             assert a == b
 
-        @unittest.skipIf(PARSER != 'lalr', "strict mode is only supported in lalr for now")
         def test_strict(self):
             # Test regex collision
             grammar = r"""
@@ -2002,20 +1999,20 @@ def _make_parser_test(LEXER, PARSER):
             self.assertRaises(TypeError, parser.parse, s)
 
 
-    _NAME = "Test" + PARSER.capitalize() + LEXER.capitalize()
+    _NAME = "Test LALR" + LEXER.capitalize()
     _TestParser.__name__ = _NAME
     _TestParser.__qualname__ = "tests.test_parser." + _NAME
     globals()[_NAME] = _TestParser
     __all__.append(_NAME)
 
 _TO_TEST = [
-        ('basic', 'lalr'),
-        ('contextual', 'lalr'),
-        ('custom_new', 'lalr'),
+        'basic',
+        'contextual',
+        'custom_new',
 ]
 
-for _LEXER, _PARSER in _TO_TEST:
-    _make_parser_test(_LEXER, _PARSER)
+for _LEXER in _TO_TEST:
+    _make_parser_test(_LEXER)
 
 if __name__ == '__main__':
     unittest.main()

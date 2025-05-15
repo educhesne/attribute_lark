@@ -20,7 +20,6 @@ from .lexer import TerminalDef, Token
 ###{standalone
 from ast import Module as AstModule
 
-_ParserArgType: 'TypeAlias' = 'Literal["lalr"]'
 _LexerArgType: 'TypeAlias' = 'Union[Literal["contextual"], Type[Lexer]]'
 _LexerCallback = Callable[[Token], Token]
 ParserCallbacks = Dict[str, Callable]
@@ -71,12 +70,11 @@ class LexerConf(Serialize):
         )
 
 class ParserConf(Serialize):
-    __serialize_fields__ = 'rules', 'start', 'parser_type', 'python_header'
+    __serialize_fields__ = 'rules', 'start', 'python_header'
 
     rules: List['Rule']
     callbacks: ParserCallbacks
     start: List[str]
-    parser_type: _ParserArgType
     python_header: Optional[AstModule]
 
     def __init__(self, rules: List['Rule'], callbacks: ParserCallbacks, start: List[str], python_header: Optional[AstModule]=None):

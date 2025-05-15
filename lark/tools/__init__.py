@@ -49,7 +49,7 @@ def build_lalr(namespace):
     if len(namespace.start) == 0:
         namespace.start.append('start')
     kwargs = {n: getattr(namespace, n) for n in options}
-    return Lark(namespace.grammar_file, parser='lalr', **kwargs), namespace.out
+    return Lark(namespace.grammar_file, **kwargs), namespace.out
 
 
 def showwarning_as_comment(message, category, filename, lineno, file=None, line=None):

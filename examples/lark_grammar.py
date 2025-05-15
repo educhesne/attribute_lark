@@ -10,7 +10,7 @@ from pathlib import Path
 examples_path = Path(__file__).parent
 lark_path = Path(lark.__file__).parent
 
-parser = lark.Lark.open(lark_path / 'grammars/lark.lark', rel_to=__file__, parser="lalr")
+parser = lark.Lark.open(lark_path / 'grammars/lark.lark', rel_to=__file__)
 
 
 grammar_files = [

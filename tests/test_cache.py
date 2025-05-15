@@ -81,36 +81,36 @@ class TestCache(TestCase):
     def test_simple(self):
         fn = "bla"
 
-        Lark(self.g, parser='lalr', cache=fn)
+        Lark(self.g, cache=fn)
         assert fn in self.mock_fs.files
-        parser = Lark(self.g, parser='lalr', cache=fn)
+        parser = Lark(self.g, cache=fn)
         assert parser.parse('a') == Tree('start', [])
 
     def test_automatic_naming(self):
         assert len(self.mock_fs.files) == 0
-        Lark(self.g, parser='lalr', cache=True)
+        Lark(self.g, cache=True)
         assert len(self.mock_fs.files) == 1
-        parser = Lark(self.g, parser='lalr', cache=True)
+        parser = Lark(self.g, cache=True)
         assert parser.parse('a') == Tree('start', [])
 
-        parser = Lark(self.g + ' "b"', parser='lalr', cache=True)
+        parser = Lark(self.g + ' "b"', cache=True)
         assert len(self.mock_fs.files) == 2
         assert parser.parse('ab') == Tree('start', [])
 
-        parser = Lark(self.g, parser='lalr', cache=True)
+        parser = Lark(self.g, cache=True)
         assert parser.parse('a') == Tree('start', [])
 
     def test_custom_lexer(self):
 
-        parser = Lark(self.g, parser='lalr', lexer=CustomLexer, cache=True)
-        parser = Lark(self.g, parser='lalr', lexer=CustomLexer, cache=True)
+        parser = Lark(self.g, lexer=CustomLexer, cache=True)
+        parser = Lark(self.g, lexer=CustomLexer, cache=True)
         assert len(self.mock_fs.files) == 1
         assert parser.parse('a') == Tree('start', [])
 
     def test_options(self):
         # Test options persistence
-        Lark(self.g, parser="lalr", debug=True, cache=True)
-        parser = Lark(self.g, parser="lalr", debug=True, cache=True)
+        Lark(self.g, debug=True, cache=True)
+        parser = Lark(self.g, debug=True, cache=True)
         assert parser.options.options['debug']
 
     def test_inline(self):
@@ -126,21 +126,21 @@ class TestCache(TestCase):
         text = "1+2 3+4"
         expected = Tree('start', [30, 70])
 
-        parser = Lark(g, parser='lalr', transformer=InlineTestT(), cache=True, lexer_callbacks={'NUM': append_zero})
+        parser = Lark(g, transformer=InlineTestT(), cache=True, lexer_callbacks={'NUM': append_zero})
         res0 = parser.parse(text)
-        parser = Lark(g, parser='lalr', transformer=InlineTestT(), cache=True, lexer_callbacks={'NUM': append_zero})
+        parser = Lark(g, transformer=InlineTestT(), cache=True, lexer_callbacks={'NUM': append_zero})
         assert len(self.mock_fs.files) == 1
         res1 = parser.parse(text)
-        res2 = InlineTestT().transform(Lark(g, parser="lalr", cache=True, lexer_callbacks={'NUM': append_zero}).parse(text))
+        res2 = InlineTestT().transform(Lark(g, cache=True, lexer_callbacks={'NUM': append_zero}).parse(text))
         assert res0 == res1 == res2 == expected
 
     def test_imports(self):
         g = """
         %import .grammars.ab (startab, expr)
         """
-        parser = Lark(g, parser='lalr', start='startab', cache=True, source_path=__file__)
+        parser = Lark(g, start='startab', cache=True, source_path=__file__)
         assert len(self.mock_fs.files) == 1
-        parser = Lark(g, parser='lalr', start='startab', cache=True, source_path=__file__)
+        parser = Lark(g, start='startab', cache=True, source_path=__file__)
         assert len(self.mock_fs.files) == 1
         res = parser.parse("ab")
         self.assertEqual(res, Tree('startab', [Tree('expr', ['a', 'b'])]))
@@ -153,11 +153,11 @@ class TestCache(TestCase):
         """
 
         assert len(self.mock_fs.files) == 0
-        Lark(g, parser="lalr", regex=True, cache=True)
+        Lark(g, regex=True, cache=True)
         assert len(self.mock_fs.files) == 1
 
         with self.assertLogs("lark", level="ERROR") as cm:
-            Lark(g, parser='lalr', regex=True, cache=True)
+            Lark(g, regex=True, cache=True)
             assert len(self.mock_fs.files) == 1
             # need to add an error log, because 'self.assertNoLogs' was added in Python 3.10
             logging.getLogger('lark').error("dummy message")
@@ -176,8 +176,8 @@ class TestCache(TestCase):
         """
         texts = ("1+", "+1", "", "1 1+1")
 
-        parser1 = Lark(g, parser='lalr', cache=True)
-        parser2 = Lark(g, parser='lalr', cache=True)
+        parser1 = Lark(g, cache=True)
+        parser2 = Lark(g, cache=True)
         assert len(self.mock_fs.files) == 1
         for text in texts:
             with self.assertRaises((UnexpectedInput)) as cm1:
