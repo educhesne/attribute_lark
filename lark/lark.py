@@ -167,7 +167,7 @@ class LarkOptions(Serialize):
         'tree_class': None,
         'cache': False,
         'postlex': None,
-        'parser': 'earley',
+        'parser': 'lalr',
         'lexer': 'auto',
         'transformer': None,
         'start': 'start',
@@ -206,11 +206,7 @@ class LarkOptions(Serialize):
         self.__dict__['options'] = options
 
 
-        assert_config(self.parser, ('earley', 'lalr', 'cyk', None))
-
-        if self.parser == 'earley' and self.transformer:
-            raise ConfigurationError('Cannot specify an embedded transformer when using the Earley algorithm. '
-                             'Please use your transformer on the resulting parse tree, or use a different algorithm (i.e. LALR)')
+        assert_config(self.parser, ('lalr', None))
 
         if o:
             raise ConfigurationError("Unknown options: %s" % o.keys())
@@ -306,9 +302,6 @@ class Lark(Serialize):
                     raise ConfigurationError("Grammar must be ascii only, when use_bytes=True")
 
             if self.options.cache:
-                if self.options.parser != 'lalr':
-                    raise ConfigurationError("cache only works with parser='lalr' for now")
-
                 unhashable = ('transformer', 'postlex', 'lexer_callbacks', 'edit_terminals', '_plugins')
                 options_str = ''.join(k+str(v) for k, v in options.items() if k not in unhashable)
                 from . import __version__
@@ -363,19 +356,8 @@ class Lark(Serialize):
 
 
         if self.options.lexer == 'auto':
-            if self.options.parser == 'lalr':
-                self.options.lexer = 'contextual'
-            elif self.options.parser == 'earley':
-                if self.options.postlex is not None:
-                    logger.info("postlex can't be used with the dynamic lexer, so we use 'basic' instead. "
-                                "Consider using lalr with contextual instead of earley")
-                    self.options.lexer = 'basic'
-                else:
-                    self.options.lexer = 'dynamic'
-            elif self.options.parser == 'cyk':
-                self.options.lexer = 'basic'
-            else:
-                assert False, self.options.parser
+            self.options.lexer = 'contextual'
+
         lexer = self.options.lexer
         if isinstance(lexer, type):
             assert issubclass(lexer, Lexer)     # XXX Is this really important? Maybe just ensure interface compliance
@@ -656,8 +638,6 @@ class Lark(Serialize):
                 For convenience, these sub-exceptions also inherit from ``ParserError`` and ``LexerError``.
 
         """
-        if on_error is not None and self.options.parser != 'lalr':
-            raise NotImplementedError("The on_error option is only implemented for the LALR(1) parser.")
         return self.parser.parse(text, start=start, on_error=on_error)
 
 

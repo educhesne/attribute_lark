@@ -22,7 +22,6 @@ python_parser3 = Lark.open_from_package('lark', 'python.lark', ['grammars'], par
 
 # Local Python2 grammar
 python_parser2 = Lark.open('python2.lark', rel_to=__file__, parser='lalr', **kwargs)
-python_parser2_earley = Lark.open('python2.lark', rel_to=__file__, parser='earley', lexer='basic', **kwargs)
 
 try:
     xrange
@@ -62,18 +61,6 @@ def test_python_lib():
     end = time.time()
     print( "test_python_lib (%d files, %.1f kb), time: %.2f secs"%(len(files), total_kb, end-start) )
 
-def test_earley_equals_lalr():
-    path = _get_lib_path()
-
-    files = glob.glob(path+'/*.py')
-    for f in files:
-        print( f )
-        tree1 = python_parser2.parse(_read(os.path.join(path, f)) + '\n')
-        tree2 = python_parser2_earley.parse(_read(os.path.join(path, f)) + '\n')
-        assert tree1 == tree2
-
-
 if __name__ == '__main__':
     test_python_lib()
-    # test_earley_equals_lalr()
     # python_parser3.parse(_read(sys.argv[1]) + '\n')

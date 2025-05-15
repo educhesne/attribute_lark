@@ -7,7 +7,7 @@ name = "lark"
 authors = [{name = "Erez Shinan", email = "erezshin@gmail.com"}]
 license = {text = "MIT"}
 description = "a modern parsing library"
-keywords = ["Earley", "LALR", "parser", "parsing", "ast"]
+keywords = ["LALR", "parser", "parsing", "ast"]
 classifiers = [
     "Development Status :: 5 - Production/Stable",
     "Intended Audience :: Developers",

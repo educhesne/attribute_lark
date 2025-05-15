@@ -43,19 +43,6 @@ class TestParsers(unittest.TestCase):
             "|".join(['"%s"'%i for i in range(250)])
         ))
 
-    def test_same_ast(self):
-        "Tests that Earley and LALR parsers produce equal trees"
-        g = Lark(r"""start: "(" name_list ("," "*" NAME)? ")"
-                    name_list: NAME | name_list "," NAME
-                    NAME: /\w+/ """, parser='lalr')
-        l = g.parse('(a,b,c,*x)')
-
-        g = Lark(r"""start: "(" name_list ("," "*" NAME)? ")"
-                    name_list: NAME | name_list "," NAME
-                    NAME: /\w/+ """)
-        l2 = g.parse('(a,b,c,*x)')
-        assert l == l2, '%s != %s' % (l.pretty(), l2.pretty())
-
     def test_infinite_recurse(self):
         g = """start: a
                a: a | "a"
@@ -379,623 +366,6 @@ class TestParsers(unittest.TestCase):
 
         p = Lark(g, parser='lalr')
 
-
-
-def _make_full_earley_test(LEXER):
-    def _Lark(grammar, **kwargs):
-        return Lark(grammar, lexer=LEXER, parser='earley', propagate_positions=True, **kwargs)
-    class _TestFullEarley(unittest.TestCase):
-        def test_anon(self):
-            # Fails an Earley implementation without special handling for empty rules,
-            # or re-processing of already completed rules.
-            g = Lark(r"""start: B
-                         B: ("ab"|/[^b]/)+
-                      """, lexer=LEXER)
-
-            self.assertEqual( g.parse('abc').children[0], 'abc')
-
-
-        @unittest.skipIf(LEXER=='basic', "Requires dynamic lexer")
-        def test_earley(self):
-            g = Lark("""start: A "b" c
-                        A: "a"+
-                        c: "abc"
-                        """, parser="earley", lexer=LEXER)
-            x = g.parse('aaaababc')
-
-        def test_earley2(self):
-            grammar = """
-            start: statement+
-
-            statement: "r"
-                     | "c" /[a-z]/+
-
-            %ignore " "
-            """
-
-            program = """c b r"""
-
-            l = Lark(grammar, parser='earley', lexer=LEXER)
-            l.parse(program)
-
-        @unittest.skipIf(LEXER != 'dynamic_complete', "Only relevant for the dynamic_complete parser")
-        def test_earley3(self):
-            """Tests prioritization and disambiguation for pseudo-terminals (there should be only one result)
-
-            By default, `+` should imitate regexp greedy-matching
-            """
-            grammar = """
-            start: A A
-            A: "a"+
-            """
-
-            l = Lark(grammar, parser='earley', lexer=LEXER)
-            res = l.parse("aaa")
-            self.assertEqual(set(res.children), {'aa', 'a'})
-            # XXX TODO fix Earley to maintain correct order
-            # i.e. terminals it imitate greedy search for terminals, but lazy search for rules
-            # self.assertEqual(res.children, ['aa', 'a'])
-
-        def test_earley4(self):
-            grammar = """
-            start: A A?
-            A: "a"+
-            """
-
-            l = Lark(grammar, parser='earley', lexer=LEXER)
-            res = l.parse("aaa")
-            assert set(res.children) == {'aa', 'a'} or res.children == ['aaa']
-            # XXX TODO fix Earley to maintain correct order
-            # i.e. terminals it imitate greedy search for terminals, but lazy search for rules
-            # self.assertEqual(res.children, ['aaa'])
-
-        def test_earley_repeating_empty(self):
-            # This was a sneaky bug!
-
-            grammar = """
-            !start: "a" empty empty "b"
-            empty: empty2
-            empty2:
-            """
-
-            parser = Lark(grammar, parser='earley', lexer=LEXER)
-            res = parser.parse('ab')
-
-            empty_tree = Tree('empty', [Tree('empty2', [])])
-            self.assertSequenceEqual(res.children, ['a', empty_tree, empty_tree, 'b'])
-
-        @unittest.skipIf(LEXER=='basic', "Requires dynamic lexer")
-        def test_earley_explicit_ambiguity(self):
-            # This was a sneaky bug!
-
-            grammar = """
-            start: a b | ab
-            a: "a"
-            b: "b"
-            ab: "ab"
-            """
-
-            parser = Lark(grammar, parser='earley', lexer=LEXER, ambiguity='explicit')
-            ambig_tree = parser.parse('ab')
-            self.assertEqual( ambig_tree.data, '_ambig')
-            self.assertEqual( len(ambig_tree.children), 2)
-
-        @unittest.skipIf(LEXER=='basic', "Requires dynamic lexer")
-        def test_ambiguity1(self):
-            grammar = """
-            start: cd+ "e"
-
-            !cd: "c"
-               | "d"
-               | "cd"
-
-            """
-            l = Lark(grammar, parser='earley', ambiguity='explicit', lexer=LEXER)
-            ambig_tree = l.parse('cde')
-
-            assert ambig_tree.data == '_ambig', ambig_tree
-            assert len(ambig_tree.children) == 2
-
-        @unittest.skipIf(LEXER=='basic', "Requires dynamic lexer")
-        def test_ambiguity2(self):
-            grammar = """
-            ANY:  /[a-zA-Z0-9 ]+/
-            a.2: "A" b+
-            b.2: "B"
-            c:   ANY
-
-            start: (a|c)*
-            """
-            l = Lark(grammar, parser='earley', lexer=LEXER)
-            res = l.parse('ABX')
-            expected = Tree('start', [
-                    Tree('a', [
-                        Tree('b', [])
-                    ]),
-                    Tree('c', [
-                        'X'
-                    ])
-                ])
-            self.assertEqual(res, expected)
-
-        def test_ambiguous_inlined_rule(self):
-            grammar = """
-            start: _field+
-            _field: f1 | f2 | f3
-            f1: INT
-            f2: INT "M"?
-            f3: INT "M"
-            %import common.INT
-            """
-
-            l = Lark(grammar, parser='earley', ambiguity='explicit', lexer=LEXER)
-            ambig_tree = l.parse("1M2")
-            expected = {
-                Tree('start', [Tree('f2', ['1']), Tree('f1', ['2'])]),
-                Tree('start', [Tree('f2', ['1']), Tree('f2', ['2'])]),
-                Tree('start', [Tree('f3', ['1']), Tree('f1', ['2'])]),
-                Tree('start', [Tree('f3', ['1']), Tree('f2', ['2'])]),
-            }
-            self.assertEqual(ambig_tree.data, '_ambig')
-            self.assertEqual(set(ambig_tree.children), expected)
-
-        def test_ambiguous_intermediate_node(self):
-            grammar = """
-            start: ab bc d?
-            !ab: "A" "B"?
-            !bc: "B"? "C"
-            !d: "D"
-            """
-
-            l = Lark(grammar, parser='earley', ambiguity='explicit', lexer=LEXER)
-            ambig_tree = l.parse("ABCD")
-            expected = {
-                Tree('start', [Tree('ab', ['A']), Tree('bc', ['B', 'C']), Tree('d', ['D'])]),
-                Tree('start', [Tree('ab', ['A', 'B']), Tree('bc', ['C']), Tree('d', ['D'])])
-            }
-            self.assertEqual(ambig_tree.data, '_ambig')
-            self.assertEqual(set(ambig_tree.children), expected)
-
-        def test_ambiguous_symbol_and_intermediate_nodes(self):
-            grammar = """
-            start: ab bc cd
-            !ab: "A" "B"?
-            !bc: "B"? "C"?
-            !cd: "C"? "D"
-            """
-
-            l = Lark(grammar, parser='earley', ambiguity='explicit', lexer=LEXER)
-            ambig_tree = l.parse("ABCD")
-            expected = {
-                Tree('start', [
-                    Tree('ab', ['A', 'B']),
-                    Tree('bc', ['C']),
-                    Tree('cd', ['D'])
-                ]),
-                Tree('start', [
-                    Tree('ab', ['A', 'B']),
-                    Tree('bc', []),
-                    Tree('cd', ['C', 'D'])
-                ]),
-                Tree('start', [
-                    Tree('ab', ['A']),
-                    Tree('bc', ['B', 'C']),
-                    Tree('cd', ['D'])
-                ]),
-                Tree('start', [
-                    Tree('ab', ['A']),
-                    Tree('bc', ['B']),
-                    Tree('cd', ['C', 'D'])
-                ]),
-            }
-            self.assertEqual(ambig_tree.data, '_ambig')
-            self.assertEqual(set(ambig_tree.children), expected)
-
-        def test_nested_ambiguous_intermediate_nodes(self):
-            grammar = """
-            start: ab bc cd e?
-            !ab: "A" "B"?
-            !bc: "B"? "C"?
-            !cd: "C"? "D"
-            !e: "E"
-            """
-
-            l = Lark(grammar, parser='earley', ambiguity='explicit', lexer=LEXER)
-            ambig_tree = l.parse("ABCDE")
-            expected = {
-                Tree('start', [
-                    Tree('ab', ['A', 'B']),
-                    Tree('bc', ['C']),
-                    Tree('cd', ['D']),
-                    Tree('e', ['E'])
-                ]),
-                Tree('start', [
-                    Tree('ab', ['A']),
-                    Tree('bc', ['B', 'C']),
-                    Tree('cd', ['D']),
-                    Tree('e', ['E'])
-                ]),
-                Tree('start', [
-                    Tree('ab', ['A']),
-                    Tree('bc', ['B']),
-                    Tree('cd', ['C', 'D']),
-                    Tree('e', ['E'])
-                ]),
-                Tree('start', [
-                    Tree('ab', ['A', 'B']),
-                    Tree('bc', []),
-                    Tree('cd', ['C', 'D']),
-                    Tree('e', ['E'])
-                ]),
-            }
-            self.assertEqual(ambig_tree.data, '_ambig')
-            self.assertEqual(set(ambig_tree.children), expected)
-
-        def test_nested_ambiguous_intermediate_nodes2(self):
-            grammar = """
-            start: ab bc cd de f
-            !ab: "A" "B"?
-            !bc: "B"? "C"?
-            !cd: "C"? "D"?
-            !de: "D"? "E"
-            !f: "F"
-            """
-
-            l = Lark(grammar, parser='earley', ambiguity='explicit', lexer=LEXER)
-            ambig_tree = l.parse("ABCDEF")
-            expected = {
-                Tree('start', [
-                    Tree('ab', ['A', 'B']),
-                    Tree('bc', ['C']),
-                    Tree('cd', ['D']),
-                    Tree('de', ['E']),
-                    Tree('f', ['F']),
-                ]),
-                Tree('start', [
-                    Tree('ab', ['A']),
-                    Tree('bc', ['B', 'C']),
-                    Tree('cd', ['D']),
-                    Tree('de', ['E']),
-                    Tree('f', ['F']),
-                ]),
-                Tree('start', [
-                    Tree('ab', ['A']),
-                    Tree('bc', ['B']),
-                    Tree('cd', ['C', 'D']),
-                    Tree('de', ['E']),
-                    Tree('f', ['F']),
-                ]),
-                Tree('start', [
-                    Tree('ab', ['A']),
-                    Tree('bc', ['B']),
-                    Tree('cd', ['C']),
-                    Tree('de', ['D', 'E']),
-                    Tree('f', ['F']),
-                ]),
-                Tree('start', [
-                    Tree('ab', ['A', "B"]),
-                    Tree('bc', []),
-                    Tree('cd', ['C']),
-                    Tree('de', ['D', 'E']),
-                    Tree('f', ['F']),
-                ]),
-                Tree('start', [
-                    Tree('ab', ['A']),
-                    Tree('bc', ['B', 'C']),
-                    Tree('cd', []),
-                    Tree('de', ['D', 'E']),
-                    Tree('f', ['F']),
-                ]),
-                Tree('start', [
-                    Tree('ab', ['A', 'B']),
-                    Tree('bc', []),
-                    Tree('cd', ['C', 'D']),
-                    Tree('de', ['E']),
-                    Tree('f', ['F']),
-                ]),
-                Tree('start', [
-                    Tree('ab', ['A', 'B']),
-                    Tree('bc', ['C']),
-                    Tree('cd', []),
-                    Tree('de', ['D', 'E']),
-                    Tree('f', ['F']),
-                ]),
-            }
-            self.assertEqual(ambig_tree.data, '_ambig')
-            self.assertEqual(set(ambig_tree.children), expected)
-
-        def test_ambiguous_intermediate_node_unnamed_token(self):
-            grammar = """
-            start: ab bc "D"
-            !ab: "A" "B"?
-            !bc: "B"? "C"
-            """
-
-            l = Lark(grammar, parser='earley', ambiguity='explicit', lexer=LEXER)
-            ambig_tree = l.parse("ABCD")
-            expected = {
-                Tree('start', [Tree('ab', ['A']), Tree('bc', ['B', 'C'])]),
-                Tree('start', [Tree('ab', ['A', 'B']), Tree('bc', ['C'])])
-            }
-            self.assertEqual(ambig_tree.data, '_ambig')
-            self.assertEqual(set(ambig_tree.children), expected)
-
-        def test_ambiguous_intermediate_node_inlined_rule(self):
-            grammar = """
-            start: ab _bc d?
-            !ab: "A" "B"?
-            _bc: "B"? "C"
-            !d: "D"
-            """
-
-            l = Lark(grammar, parser='earley', ambiguity='explicit', lexer=LEXER)
-            ambig_tree = l.parse("ABCD")
-            expected = {
-                Tree('start', [Tree('ab', ['A']), Tree('d', ['D'])]),
-                Tree('start', [Tree('ab', ['A', 'B']), Tree('d', ['D'])])
-            }
-            self.assertEqual(ambig_tree.data, '_ambig')
-            self.assertEqual(set(ambig_tree.children), expected)
-
-        def test_ambiguous_intermediate_node_conditionally_inlined_rule(self):
-            grammar = """
-            start: ab bc d?
-            !ab: "A" "B"?
-            !?bc: "B"? "C"
-            !d: "D"
-            """
-
-            l = Lark(grammar, parser='earley', ambiguity='explicit', lexer=LEXER)
-            ambig_tree = l.parse("ABCD")
-            expected = {
-                Tree('start', [Tree('ab', ['A']), Tree('bc', ['B', 'C']), Tree('d', ['D'])]),
-                Tree('start', [Tree('ab', ['A', 'B']), 'C', Tree('d', ['D'])])
-            }
-            self.assertEqual(ambig_tree.data, '_ambig')
-            self.assertEqual(set(ambig_tree.children), expected)
-
-
-        @unittest.skipIf(LEXER=='basic', "Requires dynamic lexer")
-        def test_fruitflies_ambig(self):
-            grammar = """
-                start: noun verb noun        -> simple
-                        | noun verb "like" noun -> comparative
-
-                noun: adj? NOUN
-                verb: VERB
-                adj: ADJ
-
-                NOUN: "flies" | "bananas" | "fruit"
-                VERB: "like" | "flies"
-                ADJ: "fruit"
-
-                %import common.WS
-                %ignore WS
-            """
-            parser = Lark(grammar, ambiguity='explicit', lexer=LEXER)
-            tree = parser.parse('fruit flies like bananas')
-
-            expected = Tree('_ambig', [
-                    Tree('comparative', [
-                        Tree('noun', ['fruit']),
-                        Tree('verb', ['flies']),
-                        Tree('noun', ['bananas'])
-                    ]),
-                    Tree('simple', [
-                        Tree('noun', [Tree('adj', ['fruit']), 'flies']),
-                        Tree('verb', ['like']),
-                        Tree('noun', ['bananas'])
-                    ])
-                ])
-
-            # self.assertEqual(tree, expected)
-            self.assertEqual(tree.data, expected.data)
-            self.assertEqual(set(tree.children), set(expected.children))
-
-
-        @unittest.skipIf(LEXER!='dynamic_complete', "Only relevant for the dynamic_complete parser")
-        def test_explicit_ambiguity2(self):
-            grammar = r"""
-            start: NAME+
-            NAME: /\w+/
-            %ignore " "
-            """
-            text = """cat"""
-
-            parser = _Lark(grammar, start='start', ambiguity='explicit')
-            tree = parser.parse(text)
-            self.assertEqual(tree.data, '_ambig')
-
-            combinations = {tuple(str(s) for s in t.children) for t in tree.children}
-            self.assertEqual(combinations, {
-                ('cat',),
-                ('ca', 't'),
-                ('c', 'at'),
-                ('c', 'a' ,'t')
-            })
-
-        def test_term_ambig_resolve(self):
-            grammar = r"""
-            !start: NAME+
-            NAME: /\w+/
-            %ignore " "
-            """
-            text = """foo bar"""
-
-            parser = Lark(grammar)
-            tree = parser.parse(text)
-            self.assertEqual(tree.children, ['foo', 'bar'])
-
-        def test_multiple_start_solutions(self):
-            grammar = r"""
-                !start: a | A
-                !a: A
-                A: "x"
-            """
-
-            l = Lark(grammar, ambiguity='explicit', lexer=LEXER)
-            tree = l.parse('x')
-
-            expected = Tree('_ambig', [
-                Tree('start', [Tree('a', ['x'])]),
-                Tree('start', ['x']),
-            ])
-            self.assertEqual(tree, expected)
-
-            l = Lark(grammar, ambiguity='resolve', lexer=LEXER)
-            tree = l.parse('x')
-            assert tree == Tree('start', [Tree('a', ['x'])])
-
-
-        def test_cycle(self):
-            grammar = """
-            start: start?
-            """
-
-            l = Lark(grammar, ambiguity='resolve', lexer=LEXER)
-            tree = l.parse('')
-            self.assertEqual(tree, Tree('start', []))
-
-            l = Lark(grammar, ambiguity='explicit', lexer=LEXER)
-            tree = l.parse('')
-            self.assertEqual(tree, Tree('start', []))
-
-        def test_cycle2(self):
-            grammar = """
-            start: _recurse
-            _recurse:  v
-            v: "b"
-                  | "a" v
-                  | _recurse
-            """
-
-            l = Lark(grammar, ambiguity="explicit", lexer=LEXER)
-            tree = l.parse("ab")
-            expected = (
-                Tree('start', [
-                    Tree('v', [Tree('v', [])]),
-                ])
-            )
-            self.assertEqual(tree, expected)
-
-        def test_cycles(self):
-            grammar = """
-            a: b
-            b: c*
-            c: a
-            """
-
-            l = Lark(grammar, start='a', ambiguity='resolve', lexer=LEXER)
-            tree = l.parse('')
-            self.assertEqual(tree, Tree('a', [Tree('b', [])]))
-
-            l = Lark(grammar, start='a', ambiguity='explicit', lexer=LEXER)
-            tree = l.parse('')
-            self.assertEqual(tree, Tree('a', [Tree('b', [])]))
-
-        def test_many_cycles(self):
-            grammar = """
-            start: a? | start start
-            !a: "a"
-            """
-
-            l = Lark(grammar, ambiguity='resolve', lexer=LEXER)
-            tree = l.parse('a')
-            self.assertEqual(tree, Tree('start', [Tree('a', ['a'])]))
-
-            l = Lark(grammar, ambiguity='explicit', lexer=LEXER)
-            tree = l.parse('a')
-            self.assertEqual(tree, Tree('start', [Tree('a', ['a'])]))
-
-        def test_cycles_with_child_filter(self):
-            grammar = """
-            a: _x
-            _x: _x? b
-            b:
-            """
-
-            grammar2 = """
-            a: x
-            x: x? b
-            b:
-            """
-
-            l = Lark(grammar, start='a', ambiguity='resolve', lexer=LEXER)
-            tree = l.parse('')
-            self.assertEqual(tree, Tree('a', [Tree('b', [])]))
-
-            l = Lark(grammar, start='a', ambiguity='explicit', lexer=LEXER)
-            tree = l.parse('');
-            self.assertEqual(tree, Tree('a', [Tree('b', [])]))
-
-            l = Lark(grammar2, start='a', ambiguity='resolve', lexer=LEXER)
-            tree = l.parse('');
-            self.assertEqual(tree, Tree('a', [Tree('x', [Tree('b', [])])]))
-
-            l = Lark(grammar2, start='a', ambiguity='explicit', lexer=LEXER)
-            tree = l.parse('');
-            self.assertEqual(tree, Tree('a', [Tree('x', [Tree('b', [])])]))
-
-        @unittest.skipIf(LEXER=='basic', "start/end values work differently for the basic lexer")
-        def test_symbol_node_start_end_dynamic_lexer(self):
-            grammar = """
-            start: "ABC"
-            """
-
-            l = Lark(grammar, ambiguity='forest', lexer=LEXER)
-            node = l.parse('ABC')
-            self.assertEqual(node.start, 0)
-            self.assertEqual(node.end, 3)
-
-            grammar2 = """
-            start: abc
-            abc: "ABC"
-            """
-
-            l = Lark(grammar2, ambiguity='forest', lexer=LEXER)
-            node = l.parse('ABC')
-            self.assertEqual(node.start, 0)
-            self.assertEqual(node.end, 3)
-
-        def test_resolve_ambiguity_with_shared_node(self):
-            grammar = """
-            start: (a+)*
-            !a.1: "A" |
-            """
-
-            l = Lark(grammar, ambiguity='resolve', lexer=LEXER)
-            tree = l.parse("A")
-            self.assertEqual(tree, Tree('start', [Tree('a', []), Tree('a', []), Tree('a', ['A'])]))
-
-        def test_resolve_ambiguity_with_shared_node2(self):
-            grammar = """
-            start: _s x _s
-            x: "X"?
-            _s: " "?
-            """
-
-            l = Lark(grammar, ambiguity='resolve', lexer=LEXER)
-            tree = l.parse("")
-            self.assertEqual(tree, Tree('start', [Tree('x', [])]))
-
-
-        def test_consistent_derivation_order1(self):
-            # Should return the same result for any hash-seed
-            parser = Lark('''
-                start: a a
-                a: "." | b
-                b: "."
-            ''', lexer=LEXER)
-
-            tree = parser.parse('..')
-            n = Tree('a', [])
-            assert tree == Tree('start', [n, n])
-
-    _NAME = "TestFullEarley" + LEXER.capitalize()
-    _TestFullEarley.__name__ = _NAME
-    globals()[_NAME] = _TestFullEarley
-    __all__.append(_NAME)
-
 class CustomLexerNew(Lexer):
     """
     Purpose of this custom lexer is to test the integration,
@@ -1116,21 +486,6 @@ def _make_parser_test(LEXER, PARSER):
     def _Lark_open(gfilename, **kwargs):
         return Lark.open(gfilename, lexer=lexer_class_or_name, parser=PARSER, propagate_positions=True, **kwargs)
 
-    if (LEXER, PARSER) == ('basic', 'earley'):
-        # Check that the `lark.lark` grammar represents can parse every example used in these tests.
-        # basic-Earley was an arbitrary choice, to make sure it only ran once.
-        lalr_parser = Lark.open(os.path.join(os.path.dirname(lark.__file__), 'grammars/lark.lark'), parser='lalr')
-        def wrap_with_test_grammar(f):
-            def _f(x, **kwargs):
-                inst = f(x, **kwargs)
-                lalr_parser.parse(inst.source_grammar) # Test after instance creation. When the grammar should fail, don't test it.
-                return inst
-            return _f
-
-        _Lark = wrap_with_test_grammar(_Lark)
-        _Lark_open = wrap_with_test_grammar(_Lark_open)
-
-
     class _TestParser(unittest.TestCase):
         def test_basic1(self):
             g = _Lark("""start: a+ b a* "b" a*
@@ -1243,7 +598,6 @@ def _make_parser_test(LEXER, PARSER):
                 s = j.encode(enc)
                 self.assertRaises(UnexpectedCharacters, g.parse, s)
 
-        @unittest.skipIf(PARSER == 'cyk', "Takes forever")
         def test_stack_for_ebnf(self):
             """Verify that stack depth isn't an issue for EBNF grammars"""
             g = _Lark(r"""start: a+
@@ -1315,9 +669,6 @@ def _make_parser_test(LEXER, PARSER):
             [list] = r.children
             self.assertSequenceEqual([item.data for item in list.children], ('item', 'item'))
 
-
-
-        @unittest.skipIf(PARSER == 'cyk', "No empty rules")
         def test_empty_expand1_list(self):
             g = _Lark(r"""start: list
                             ?list: item*
@@ -1336,7 +687,6 @@ def _make_parser_test(LEXER, PARSER):
             [list] = r.children
             self.assertSequenceEqual([item.data for item in list.children], ())
 
-        @unittest.skipIf(PARSER == 'cyk', "No empty rules")
         def test_empty_expand1_list_2(self):
             g = _Lark(r"""start: list
                             ?list: item* "!"?
@@ -1355,8 +705,6 @@ def _make_parser_test(LEXER, PARSER):
             [list] = r.children
             self.assertSequenceEqual([item.data for item in list.children], ())
 
-
-        @unittest.skipIf(PARSER == 'cyk', "No empty rules")
         def test_empty_flatten_list(self):
             g = _Lark(r"""start: list
                             list: | item "," list
@@ -1517,7 +865,6 @@ def _make_parser_test(LEXER, PARSER):
             self.assertEqual(len(x.children), 1)
             self.assertEqual(x.children[0].type, "A", "A isn't associated with /a/")
 
-        @unittest.skipIf(PARSER == 'cyk', "No empty rules")
         def test_maybe(self):
             g = _Lark("""start: ["a"] """)
             x = g.parse('a')
@@ -1571,7 +918,6 @@ def _make_parser_test(LEXER, PARSER):
                       """)
             x = g.parse('\n')
 
-        @unittest.skipIf(PARSER == 'cyk', "No empty rules")
         def test_empty(self):
             # Fails an Earley implementation without special handling for empty rules,
             # or re-processing of already completed rules.
@@ -1619,8 +965,6 @@ def _make_parser_test(LEXER, PARSER):
 
         def test_float_without_lexer(self):
             expected_error = UnexpectedCharacters if 'dynamic' in LEXER else UnexpectedToken
-            if PARSER == 'cyk':
-                expected_error = ParseError
 
             g = _Lark("""start: ["+"|"-"] float
                          float: digit* "." digit+ exp?
@@ -1714,7 +1058,6 @@ def _make_parser_test(LEXER, PARSER):
             x = g.parse('abcdef')
             self.assertEqual(x.children, ['abcdef'])
 
-        @unittest.skipIf(PARSER == 'cyk', "No empty rules")
         def test_twice_empty(self):
             g = """!start: ("A"?)?
                 """
@@ -2075,8 +1418,6 @@ def _make_parser_test(LEXER, PARSER):
             parser = _Lark(grammar, postlex=CustomIndenter())
             parser.parse("a\n    b\n")
 
-
-        @unittest.skipIf(PARSER == 'cyk', "Doesn't work for CYK")
         def test_prioritization(self):
             "Tests effect of priority on result"
 
@@ -2118,65 +1459,6 @@ def _make_parser_test(LEXER, PARSER):
             res = l.parse("AAAA")
             self.assertEqual(res.children[0].data, 'b')
 
-
-
-        @unittest.skipIf(PARSER != 'earley' or 'dynamic' not in LEXER, "Currently only Earley supports priority sum in rules")
-        def test_prioritization_sum(self):
-            "Tests effect of priority on result"
-
-            grammar = """
-            start: ab_ b_ a_ | indirection
-            indirection: a_ bb_ a_
-            a_: "a"
-            b_: "b"
-            ab_: "ab"
-            bb_.1: "bb"
-            """
-
-            l = _Lark(grammar, priority="invert")
-            res = l.parse('abba')
-            self.assertEqual(''.join(child.data for child in res.children), 'ab_b_a_')
-
-            grammar = """
-            start: ab_ b_ a_ | indirection
-            indirection: a_ bb_ a_
-            a_: "a"
-            b_: "b"
-            ab_.1: "ab"
-            bb_: "bb"
-            """
-
-            l = _Lark(grammar, priority="invert")
-            res = l.parse('abba')
-            self.assertEqual(''.join(child.data for child in res.children), 'indirection')
-
-            grammar = """
-            start: ab_ b_ a_ | indirection
-            indirection: a_ bb_ a_
-            a_.2: "a"
-            b_.1: "b"
-            ab_.3: "ab"
-            bb_.3: "bb"
-            """
-
-            l = _Lark(grammar, priority="invert")
-            res = l.parse('abba')
-            self.assertEqual(''.join(child.data for child in res.children), 'ab_b_a_')
-
-            grammar = """
-            start: ab_ b_ a_ | indirection
-            indirection: a_ bb_ a_
-            a_.1: "a"
-            b_.1: "b"
-            ab_.4: "ab"
-            bb_.3: "bb"
-            """
-
-            l = _Lark(grammar, priority="invert")
-            res = l.parse('abba')
-            self.assertEqual(''.join(child.data for child in res.children), 'indirection')
-
-
         def test_utf8(self):
             g = u"""start: a
                    a: "±a"
@@ -2190,9 +1472,6 @@ def _make_parser_test(LEXER, PARSER):
             l = _Lark(g)
             self.assertEqual(l.parse(u'±a'), Tree('start', [u'\xb1a']))
 
-
-
-        @unittest.skipIf(PARSER == 'cyk', "No empty rules")
         def test_ignore(self):
             grammar = r"""
             COMMENT: /(!|(\/\/))[^\n]*/
@@ -2265,12 +1544,12 @@ def _make_parser_test(LEXER, PARSER):
 
             g = u"""!start: "A"~0..2
                 """
-            if PARSER != 'cyk': # XXX CYK currently doesn't support empty grammars
-                l = _Lark(g)
-                self.assertEqual(l.parse(u''), Tree('start', []))
-                self.assertEqual(l.parse(u'A'), Tree('start', ['A']))
-                self.assertEqual(l.parse(u'AA'), Tree('start', ['A', 'A']))
-                self.assertRaises((UnexpectedToken, UnexpectedInput), l.parse, u'AAA')
+
+            l = _Lark(g)
+            self.assertEqual(l.parse(u''), Tree('start', []))
+            self.assertEqual(l.parse(u'A'), Tree('start', ['A']))
+            self.assertEqual(l.parse(u'AA'), Tree('start', ['A', 'A']))
+            self.assertRaises((UnexpectedToken, UnexpectedInput), l.parse, u'AAA')
 
             g = u"""!start: "A"~3..2
                 """
@@ -2314,7 +1593,6 @@ def _make_parser_test(LEXER, PARSER):
             self.assertEqual(tok.end_line, 2)
             self.assertEqual(tok.end_column, 6)
 
-        @unittest.skipIf(PARSER=='cyk', "Empty rules")
         def test_empty_end(self):
             p = _Lark("""
                 start: b c d
@@ -2325,7 +1603,6 @@ def _make_parser_test(LEXER, PARSER):
             res = p.parse('B')
             self.assertEqual(len(res.children), 3)
 
-        @unittest.skipIf(PARSER=='cyk', "Empty rules")
         def test_maybe_placeholders(self):
             # Anonymous tokens shouldn't count
             p = _Lark("""start: ["a"] ["b"] ["c"] """, maybe_placeholders=True)
@@ -2467,7 +1744,7 @@ def _make_parser_test(LEXER, PARSER):
                 self.assertEqual(a.line, 1)
                 self.assertEqual(b.line, 2)
 
-        @unittest.skipIf(PARSER=='cyk' or LEXER=='custom_old0', "match_examples() not supported for CYK/old custom lexer")
+        @unittest.skipIf(LEXER=='custom_old0', "match_examples() not supported for old custom lexer")
         def test_match_examples(self):
             p = _Lark(r"""
                 start: "a" "b" "c"
@@ -2598,12 +1875,6 @@ def _make_parser_test(LEXER, PARSER):
             s = "[0 1, 2,@, 3,,, 4, 5 6 ]$"
             tree = g.parse(s, on_error=ignore_errors)
 
-        @unittest.skipIf(PARSER == 'lalr', "test on_error only works with lalr")
-        def test_on_error_without_lalr(self):
-            p = _Lark(r"""start: "A" """)
-            self.assertRaises(NotImplementedError, p.parse, "", on_error=print)
-
-        @unittest.skipIf(PARSER != 'lalr', "interactive_parser error handling only works with LALR for now")
         def test_iter_parse(self):
             ab_grammar = '!start: "a"* "b"*'
             parser = _Lark(ab_grammar)
@@ -2614,7 +1885,6 @@ def _make_parser_test(LEXER, PARSER):
             assert next(i) == 'a'
             assert next(i) == 'b'
 
-        @unittest.skipIf(PARSER != 'lalr', "interactive_parser is only implemented for LALR at the moment")
         def test_interactive_treeless_transformer(self):
             grammar = r"""
                 start: SYM+
@@ -2636,7 +1906,6 @@ def _make_parser_test(LEXER, PARSER):
             res = ip.feed_eof()
             self.assertEqual(res.children, [1, 2, 1])
 
-        @unittest.skipIf(PARSER == 'earley', "Tree-less mode is not supported in earley")
         def test_default_in_treeless_mode(self):
             grammar = r"""
                 start: expr
@@ -2740,26 +2009,13 @@ def _make_parser_test(LEXER, PARSER):
     __all__.append(_NAME)
 
 _TO_TEST = [
-        ('basic', 'earley'),
-        ('basic', 'cyk'),
         ('basic', 'lalr'),
-
-        ('dynamic', 'earley'),
-        ('dynamic_complete', 'earley'),
-
         ('contextual', 'lalr'),
-
         ('custom_new', 'lalr'),
-        ('custom_new', 'cyk'),
-        ('custom_old0', 'earley'),
-        ('custom_old1', 'earley'),
 ]
 
 for _LEXER, _PARSER in _TO_TEST:
     _make_parser_test(_LEXER, _PARSER)
-
-for _LEXER in ('basic', 'dynamic', 'dynamic_complete'):
-    _make_full_earley_test(_LEXER)
 
 if __name__ == '__main__':
     unittest.main()

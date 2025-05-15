@@ -20,8 +20,8 @@ from .lexer import TerminalDef, Token
 ###{standalone
 from ast import Module as AstModule
 
-_ParserArgType: 'TypeAlias' = 'Literal["earley", "lalr", "cyk", "auto"]'
-_LexerArgType: 'TypeAlias' = 'Union[Literal["auto", "basic", "contextual", "dynamic", "dynamic_complete"], Type[Lexer]]'
+_ParserArgType: 'TypeAlias' = 'Literal["lalr"]'
+_LexerArgType: 'TypeAlias' = 'Union[Literal["contextual"], Type[Lexer]]'
 _LexerCallback = Callable[[Token], Token]
 ParserCallbacks = Dict[str, Callable]
 

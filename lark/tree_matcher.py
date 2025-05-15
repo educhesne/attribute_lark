@@ -5,7 +5,7 @@ from collections import defaultdict
 
 from . import Tree, Token
 from .common import ParserConf
-from .parsers import earley
+# from .parsers import earley
 from .grammar import Rule, Terminal, NonTerminal
 
 
@@ -177,8 +177,8 @@ class TreeMatcher:
             # TODO pass callbacks through dict, instead of alias?
             callbacks = {rule: rule.alias for rule in rules}
             conf = ParserConf(rules, callbacks, [rulename], None)
-            parser = earley.Parser(self.parser.lexer_conf, conf, _match, resolve_ambiguity=True)
-            self._parser_cache[rulename] = parser
+            # parser = earley.Parser(self.parser.lexer_conf, conf, _match, resolve_ambiguity=True)
+            # self._parser_cache[rulename] = parser
 
         # find a full derivation
         unreduced_tree = parser.parse(ChildrenLexer(tree.children), rulename)
