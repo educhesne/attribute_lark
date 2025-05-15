@@ -108,24 +108,11 @@ class LarkOptions(Serialize):
 
     **=== Algorithm Options ===**
 
-    parser
-            Decides which parser engine to use. Accepts "earley" or "lalr". (Default: "earley").
-            (there is also a "cyk" option for legacy)
     lexer
             Decides whether or not to use a lexer stage
 
-            - "auto" (default): Choose for me based on the parser
             - "basic": Use a basic lexer
-            - "contextual": Stronger lexer (only works with parser="lalr")
-            - "dynamic": Flexible and powerful (only with parser="earley")
-            - "dynamic_complete": Same as dynamic, but tries *every* variation of tokenizing possible.
-    ambiguity
-            Decides how to handle ambiguity in the parse. Only relevant if parser="earley"
-
-            - "resolve": The parser will automatically choose the simplest derivation
-              (it chooses consistently: greedy for tokens, non-greedy for rules)
-            - "explicit": The parser will return all derivations wrapped in "_ambig" tree nodes (i.e. a forest).
-            - "forest": The parser will return the root of the shared packed parse forest.
+            - "contextual" (default): Stronger lexer (only works with parser="lalr")
 
     **=== Misc. / Domain Specific Options ===**
 
@@ -427,7 +414,6 @@ class Lark(Serialize):
                 self.rules,
                 self.options.tree_class or Tree,
                 self.options.propagate_positions,
-                False,
                 self.options.maybe_placeholders
             )
         self._callbacks = self._parse_tree_builder.create_callback(self.options.transformer)

@@ -159,7 +159,7 @@ def _should_expand(sym):
     return not sym.is_term and sym.name.startswith('_')
 
 
-def maybe_create_child_filter(expansion, keep_all_tokens, ambiguous, _empty_indices: List[bool]):
+def maybe_create_child_filter(expansion, keep_all_tokens, _empty_indices: List[bool]):
     # Prepare empty_indices as: How many Nones to insert at each index?
     if _empty_indices:
         assert _empty_indices.count(False) == len(expansion)
@@ -180,133 +180,11 @@ def maybe_create_child_filter(expansion, keep_all_tokens, ambiguous, _empty_indi
     nones_to_add += empty_indices[len(expansion)]
 
     if _empty_indices or len(to_include) < len(expansion) or any(to_expand for i, to_expand,_ in to_include):
-        if _empty_indices or ambiguous:
-            return partial(ChildFilter if ambiguous else ChildFilterLALR, to_include, nones_to_add)
+        if _empty_indices:
+            return partial(ChildFilterLALR, to_include, nones_to_add)
         else:
             # LALR without placeholders
             return partial(ChildFilterLALR_NoPlaceholders, [(i, x) for i,x,_ in to_include])
-
-
-class AmbiguousExpander:
-    """Deal with the case where we're expanding children ('_rule') into a parent but the children
-       are ambiguous. i.e. (parent->_ambig->_expand_this_rule). In this case, make the parent itself
-       ambiguous with as many copies as there are ambiguous children, and then copy the ambiguous children
-       into the right parents in the right places, essentially shifting the ambiguity up the tree."""
-    def __init__(self, to_expand, tree_class, node_builder):
-        self.node_builder = node_builder
-        self.tree_class = tree_class
-        self.to_expand = to_expand
-
-    def __call__(self, children):
-        def _is_ambig_tree(t):
-            return hasattr(t, 'data') and t.data == '_ambig'
-
-        # -- When we're repeatedly expanding ambiguities we can end up with nested ambiguities.
-        #    All children of an _ambig node should be a derivation of that ambig node, hence
-        #    it is safe to assume that if we see an _ambig node nested within an ambig node
-        #    it is safe to simply expand it into the parent _ambig node as an alternative derivation.
-        ambiguous = []
-        for i, child in enumerate(children):
-            if _is_ambig_tree(child):
-                if i in self.to_expand:
-                    ambiguous.append(i)
-
-                child.expand_kids_by_data('_ambig')
-
-        if not ambiguous:
-            return self.node_builder(children)
-
-        expand = [child.children if i in ambiguous else (child,) for i, child in enumerate(children)]
-        return self.tree_class('_ambig', [self.node_builder(list(f)) for f in product(*expand)])
-
-
-def maybe_create_ambiguous_expander(tree_class, expansion, keep_all_tokens):
-    to_expand = [i for i, sym in enumerate(expansion)
-                 if keep_all_tokens or ((not (sym.is_term and sym.filter_out)) and _should_expand(sym))]
-    if to_expand:
-        return partial(AmbiguousExpander, to_expand, tree_class)
-
-
-class AmbiguousIntermediateExpander:
-    """
-    Propagate ambiguous intermediate nodes and their derivations up to the
-    current rule.
-
-    In general, converts
-
-    rule
-      _iambig
-        _inter
-          someChildren1
-          ...
-        _inter
-          someChildren2
-          ...
-      someChildren3
-      ...
-
-    to
-
-    _ambig
-      rule
-        someChildren1
-        ...
-        someChildren3
-        ...
-      rule
-        someChildren2
-        ...
-        someChildren3
-        ...
-      rule
-        childrenFromNestedIambigs
-        ...
-        someChildren3
-        ...
-      ...
-
-    propagating up any nested '_iambig' nodes along the way.
-    """
-
-    def __init__(self, tree_class, node_builder):
-        self.node_builder = node_builder
-        self.tree_class = tree_class
-
-    def __call__(self, children):
-        def _is_iambig_tree(child):
-            return hasattr(child, 'data') and child.data == '_iambig'
-
-        def _collapse_iambig(children):
-            """
-            Recursively flatten the derivations of the parent of an '_iambig'
-            node. Returns a list of '_inter' nodes guaranteed not
-            to contain any nested '_iambig' nodes, or None if children does
-            not contain an '_iambig' node.
-            """
-
-            # Due to the structure of the SPPF,
-            # an '_iambig' node can only appear as the first child
-            if children and _is_iambig_tree(children[0]):
-                iambig_node = children[0]
-                result = []
-                for grandchild in iambig_node.children:
-                    collapsed = _collapse_iambig(grandchild.children)
-                    if collapsed:
-                        for child in collapsed:
-                            child.children += children[1:]
-                        result += collapsed
-                    else:
-                        new_tree = self.tree_class('_inter', grandchild.children + children[1:])
-                        result.append(new_tree)
-                return result
-
-        collapsed = _collapse_iambig(children)
-        if collapsed:
-            processed_nodes = [self.node_builder(c.children) for c in collapsed]
-            return self.tree_class('_ambig', processed_nodes)
-
-        return self.node_builder(children)
-
 
 
 def inplace_transformer(func):
@@ -329,10 +207,9 @@ def apply_visit_wrapper(func, name, wrapper):
 
 
 class ParseTreeBuilder:
-    def __init__(self, rules, tree_class, propagate_positions=False, ambiguous=False, maybe_placeholders=False):
+    def __init__(self, rules, tree_class, propagate_positions=False, maybe_placeholders=False):
         self.tree_class = tree_class
         self.propagate_positions = propagate_positions
-        self.ambiguous = ambiguous
         self.maybe_placeholders = maybe_placeholders
 
         self.rule_builders = list(self._init_builders(rules))
@@ -347,10 +224,8 @@ class ParseTreeBuilder:
 
             wrapper_chain = list(filter(None, [
                 (expand_single_child and not rule.alias) and ExpandSingleChild,
-                maybe_create_child_filter(rule.expansion, keep_all_tokens, self.ambiguous, options.empty_indices if self.maybe_placeholders else None),
+                maybe_create_child_filter(rule.expansion, keep_all_tokens, options.empty_indices if self.maybe_placeholders else None),
                 propagate_positions,
-                self.ambiguous and maybe_create_ambiguous_expander(self.tree_class, rule.expansion, keep_all_tokens),
-                self.ambiguous and partial(AmbiguousIntermediateExpander, self.tree_class)
             ]))
 
             yield rule, wrapper_chain
