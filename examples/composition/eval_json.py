@@ -2,6 +2,7 @@
 
 from lark import Transformer, v_args
 
+
 class JsonTreeToJson(Transformer):
     @v_args(inline=True)
     def string(self, s):

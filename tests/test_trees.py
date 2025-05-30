@@ -10,18 +10,32 @@ import functools
 
 from lark.tree import Tree
 from lark.lexer import Token
-from lark.visitors import Visitor, Visitor_Recursive, Transformer, Interpreter, visit_children_decor, v_args, Discard, Transformer_InPlace, \
-    Transformer_InPlaceRecursive, Transformer_NonRecursive, merge_transformers
+from lark.visitors import (
+    Visitor,
+    Visitor_Recursive,
+    Transformer,
+    Interpreter,
+    visit_children_decor,
+    v_args,
+    Discard,
+    Transformer_InPlace,
+    Transformer_InPlaceRecursive,
+    Transformer_NonRecursive,
+    merge_transformers,
+)
 
 
 class TestTrees(TestCase):
     def setUp(self):
-        self.tree1 = Tree('a', [Tree(x, y) for x, y in zip('bcd', 'xyz')])
-        self.tree2 = Tree('a', [
-            Tree('b', [Token('T', 'x')]),
-            Tree('c', [Token('T', 'y')]),
-            Tree('d', [Tree('z', [Token('T', 'zz'), Tree('zzz', 'zzz')])]),
-        ])
+        self.tree1 = Tree("a", [Tree(x, y) for x, y in zip("bcd", "xyz")])
+        self.tree2 = Tree(
+            "a",
+            [
+                Tree("b", [Token("T", "x")]),
+                Tree("c", [Token("T", "y")]),
+                Tree("d", [Tree("z", [Token("T", "zz"), Tree("zzz", "zzz")])]),
+            ],
+        )
 
     def test_eq(self):
         assert self.tree1 == self.tree1
@@ -42,98 +56,118 @@ class TestTrees(TestCase):
         assert self.tree1 == eval(repr(self.tree1))
 
     def test_iter_subtrees(self):
-        expected = [Tree('b', 'x'), Tree('c', 'y'), Tree('d', 'z'),
-                    Tree('a', [Tree('b', 'x'), Tree('c', 'y'), Tree('d', 'z')])]
+        expected = [
+            Tree("b", "x"),
+            Tree("c", "y"),
+            Tree("d", "z"),
+            Tree("a", [Tree("b", "x"), Tree("c", "y"), Tree("d", "z")]),
+        ]
         nodes = list(self.tree1.iter_subtrees())
         self.assertEqual(nodes, expected)
 
     def test_iter_subtrees_topdown(self):
-        expected = [Tree('a', [Tree('b', 'x'), Tree('c', 'y'), Tree('d', 'z')]),
-                    Tree('b', 'x'), Tree('c', 'y'), Tree('d', 'z')]
+        expected = [
+            Tree("a", [Tree("b", "x"), Tree("c", "y"), Tree("d", "z")]),
+            Tree("b", "x"),
+            Tree("c", "y"),
+            Tree("d", "z"),
+        ]
         nodes = list(self.tree1.iter_subtrees_topdown())
         self.assertEqual(nodes, expected)
 
     def test_find_token(self):
-        expected = [Token('T', 'x'), Token('T', 'y'), Token('T', 'zz')]
-        tokens = list(self.tree2.find_token('T'))
+        expected = [Token("T", "x"), Token("T", "y"), Token("T", "zz")]
+        tokens = list(self.tree2.find_token("T"))
         self.assertEqual(tokens, expected)
 
     def test_visitor(self):
         class Visitor1(Visitor):
             def __init__(self):
-                self.nodes=[]
+                self.nodes = []
 
-            def __default__(self,tree):
+            def __default__(self, tree):
                 self.nodes.append(tree)
+
         class Visitor1_Recursive(Visitor_Recursive):
             def __init__(self):
-                self.nodes=[]
+                self.nodes = []
 
-            def __default__(self,tree):
+            def __default__(self, tree):
                 self.nodes.append(tree)
 
-        visitor1=Visitor1()
-        visitor1_recursive=Visitor1_Recursive()
+        visitor1 = Visitor1()
+        visitor1_recursive = Visitor1_Recursive()
 
-        expected_top_down = [Tree('a', [Tree('b', 'x'), Tree('c', 'y'), Tree('d', 'z')]),
-                    Tree('b', 'x'), Tree('c', 'y'), Tree('d', 'z')]
-        expected_botton_up= [Tree('b', 'x'), Tree('c', 'y'), Tree('d', 'z'),
-                    Tree('a', [Tree('b', 'x'), Tree('c', 'y'), Tree('d', 'z')])]
+        expected_top_down = [
+            Tree("a", [Tree("b", "x"), Tree("c", "y"), Tree("d", "z")]),
+            Tree("b", "x"),
+            Tree("c", "y"),
+            Tree("d", "z"),
+        ]
+        expected_botton_up = [
+            Tree("b", "x"),
+            Tree("c", "y"),
+            Tree("d", "z"),
+            Tree("a", [Tree("b", "x"), Tree("c", "y"), Tree("d", "z")]),
+        ]
 
         visitor1.visit(self.tree1)
-        self.assertEqual(visitor1.nodes,expected_botton_up)
+        self.assertEqual(visitor1.nodes, expected_botton_up)
 
         visitor1_recursive.visit(self.tree1)
-        self.assertEqual(visitor1_recursive.nodes,expected_botton_up)
+        self.assertEqual(visitor1_recursive.nodes, expected_botton_up)
 
-        visitor1.nodes=[]
-        visitor1_recursive.nodes=[]
+        visitor1.nodes = []
+        visitor1_recursive.nodes = []
 
         visitor1.visit_topdown(self.tree1)
-        self.assertEqual(visitor1.nodes,expected_top_down)
+        self.assertEqual(visitor1.nodes, expected_top_down)
 
         visitor1_recursive.visit_topdown(self.tree1)
-        self.assertEqual(visitor1_recursive.nodes,expected_top_down)
+        self.assertEqual(visitor1_recursive.nodes, expected_top_down)
 
     def test_interp(self):
-        t = Tree('a', [Tree('b', []), Tree('c', []), 'd'])
+        t = Tree("a", [Tree("b", []), Tree("c", []), "d"])
 
         class Interp1(Interpreter):
             def a(self, tree):
-                return self.visit_children(tree) + ['e']
+                return self.visit_children(tree) + ["e"]
 
             def b(self, tree):
-                return 'B'
+                return "B"
 
             def c(self, tree):
-                return 'C'
+                return "C"
 
-        self.assertEqual(Interp1().visit(t), list('BCde'))
+        self.assertEqual(Interp1().visit(t), list("BCde"))
 
         class Interp2(Interpreter):
             @visit_children_decor
             def a(self, values):
-                return values + ['e']
+                return values + ["e"]
 
             def b(self, tree):
-                return 'B'
+                return "B"
 
             def c(self, tree):
-                return 'C'
+                return "C"
 
-        self.assertEqual(Interp2().visit(t), list('BCde'))
+        self.assertEqual(Interp2().visit(t), list("BCde"))
 
         class Interp3(Interpreter):
             def b(self, tree):
-                return 'B'
+                return "B"
 
             def c(self, tree):
-                return 'C'
+                return "C"
 
-        self.assertEqual(Interp3().visit(t), list('BCd'))
+        self.assertEqual(Interp3().visit(t), list("BCd"))
 
     def test_transformer(self):
-        t = Tree('add', [Tree('sub', [Tree('i', ['3']), Tree('f', ['1.1'])]), Tree('i', ['1'])])
+        t = Tree(
+            "add",
+            [Tree("sub", [Tree("i", ["3"]), Tree("f", ["1.1"])]), Tree("i", ["1"])],
+        )
 
         class T(Transformer):
             i = v_args(inline=True)(int)
@@ -151,15 +185,13 @@ class TestTrees(TestCase):
         class T(Transformer):
             i = int
             f = float
-            sub = lambda self, a, b: a-b
+            sub = lambda self, a, b: a - b
 
             def add(self, a, b):
                 return a + b
 
-
         res = T().transform(t)
         self.assertEqual(res, 2.9)
-
 
         @v_args(inline=True)
         class T(Transformer):
@@ -175,20 +207,20 @@ class TestTrees(TestCase):
         class MyTransformer(Transformer):
             @staticmethod
             def integer(args):
-                return 1 # some code here
+                return 1  # some code here
 
             @classmethod
             def integer2(cls, args):
-                return 2 # some code here
+                return 2  # some code here
 
-            hello = staticmethod(lambda args: 'hello')
+            hello = staticmethod(lambda args: "hello")
 
-        x = MyTransformer().transform( Tree('integer', [2]))
+        x = MyTransformer().transform(Tree("integer", [2]))
         self.assertEqual(x, 1)
-        x = MyTransformer().transform( Tree('integer2', [2]))
+        x = MyTransformer().transform(Tree("integer2", [2]))
         self.assertEqual(x, 2)
-        x = MyTransformer().transform( Tree('hello', [2]))
-        self.assertEqual(x, 'hello')
+        x = MyTransformer().transform(Tree("hello", [2]))
+        self.assertEqual(x, "hello")
 
     def test_smart_decorator(self):
         class OtherClass:
@@ -275,21 +307,17 @@ class TestTrees(TestCase):
             "ab_method": ([1, 2], (1, 2)),
             "oc_ab_classmethod": ([1, 2], (1, 2)),
             "oc_class_ab_classmethod": ([1, 2], (1, 2)),
-
             # AFAIK, these two cases are impossible to deal with. `oc_instance.ab_staticmethod` returns an actual
             # function object that is impossible to distinguish from a normally defined method.
             # (i.e. `staticmethod(f).__get__(?, ?) is f` is True)
             # "oc_ab_staticmethod": ([1, 2], (1, 2)),
             # "oc_class_ab_staticmethod": ([1, 2], (1, 2)),
-
             "oc_ab_method": ([1, 2], (1, 2)),
             "ot_ab_classmethod": ([1, 2], (1, 2)),
             "ot_class_ab_classmethod": ([1, 2], (1, 2)),
-
             # Same as above
             # "ot_ab_staticmethod": ([1, 2], (1, 2)),
             # "ot_class_ab_staticmethod": ([1, 2], (1, 2)),
-
             "ot_ab_method": ([1, 2], (1, 2)),
             "ab_partialmethod": ([2], (1, 2)),
             "custom_callable": ([1, 2], (1, 2)),
@@ -335,19 +363,23 @@ class TestTrees(TestCase):
             @staticmethod
             def test(a, b):
                 return a + b
-        x = T().transform(Tree('test', ['a', 'b']))
-        self.assertEqual(x, 'ab')
+
+        x = T().transform(Tree("test", ["a", "b"]))
+        self.assertEqual(x, "ab")
 
     def test_vargs_override(self):
-        t = Tree('add', [Tree('sub', [Tree('i', ['3']), Tree('f', ['1.1'])]), Tree('i', ['1'])])
+        t = Tree(
+            "add",
+            [Tree("sub", [Tree("i", ["3"]), Tree("f", ["1.1"])]), Tree("i", ["1"])],
+        )
 
         @v_args(inline=True)
         class T(Transformer):
             i = int
             f = float
-            sub = lambda self, a, b: a-b
+            sub = lambda self, a, b: a - b
 
-            not_a_method = {'other': 'stuff'}
+            not_a_method = {"other": "stuff"}
 
             @v_args(inline=False)
             def add(self, values):
@@ -357,7 +389,6 @@ class TestTrees(TestCase):
         self.assertEqual(res, 2.9)
 
     def test_partial(self):
-
         tree = Tree("start", [Tree("a", ["test1"]), Tree("b", ["test2"])])
 
         def test(prefix, s, postfix):
@@ -374,30 +405,45 @@ class TestTrees(TestCase):
     def test_discard(self):
         class MyTransformer(Transformer):
             def a(self, args):
-                return 1 # some code here
+                return 1  # some code here
 
             def b(cls, args):
                 return Discard
 
-        t = Tree('root', [
-            Tree('b', []),
-            Tree('a', []),
-            Tree('b', []),
-            Tree('c', []),
-            Tree('b', []),
-        ])
-        t2 = Tree('root', [1, Tree('c', [])])
+        t = Tree(
+            "root",
+            [
+                Tree("b", []),
+                Tree("a", []),
+                Tree("b", []),
+                Tree("c", []),
+                Tree("b", []),
+            ],
+        )
+        t2 = Tree("root", [1, Tree("c", [])])
 
-        x = MyTransformer().transform( t )
+        x = MyTransformer().transform(t)
         self.assertEqual(x, t2)
 
     def test_transformer_variants(self):
-        tree = Tree('start', [
-            Tree('add', [Token('N', '1'), Token('N', '2'), Token('IGNORE_TOKEN', '4')]),
-            Tree('add', [Token('N', '3'), Token('N', '4')]),
-            Tree('ignore_tree', [Token('DO', 'NOT PANIC')]),
-            ])
-        for base in (Transformer, Transformer_InPlace, Transformer_NonRecursive, Transformer_InPlaceRecursive):
+        tree = Tree(
+            "start",
+            [
+                Tree(
+                    "add",
+                    [Token("N", "1"), Token("N", "2"), Token("IGNORE_TOKEN", "4")],
+                ),
+                Tree("add", [Token("N", "3"), Token("N", "4")]),
+                Tree("ignore_tree", [Token("DO", "NOT PANIC")]),
+            ],
+        )
+        for base in (
+            Transformer,
+            Transformer_InPlace,
+            Transformer_NonRecursive,
+            Transformer_InPlaceRecursive,
+        ):
+
             class T(base):
                 def add(self, children):
                     return sum(children)
@@ -413,23 +459,23 @@ class TestTrees(TestCase):
 
             copied = copy.deepcopy(tree)
             result = T().transform(copied)
-            self.assertEqual(result, Tree('start', [3, 7]))
+            self.assertEqual(result, Tree("start", [3, 7]))
 
     def test_merge_transformers(self):
-        tree = Tree('start', [
-            Tree('main', [
-                Token("A", '1'), Token("B", '2')
-            ]),
-            Tree("module__main", [
-                Token("A", "2"), Token("B", "3")
-            ])
-        ])
+        tree = Tree(
+            "start",
+            [
+                Tree("main", [Token("A", "1"), Token("B", "2")]),
+                Tree("module__main", [Token("A", "2"), Token("B", "3")]),
+            ],
+        )
 
         class T1(Transformer):
             A = int
             B = int
             main = sum
             start = list
+
             def module__main(self, children):
                 return sum(children)
 
@@ -446,7 +492,6 @@ class TestTrees(TestCase):
         class T4(Transformer):
             main = sum
 
-
         t1_res = T1().transform(tree)
         composed_res = merge_transformers(T2(), module=T3()).transform(tree)
         self.assertEqual(t1_res, composed_res)
@@ -462,7 +507,7 @@ class TestTrees(TestCase):
             def INT(self, value):
                 return int(value)
 
-        t = Token('INT', '123')
+        t = Token("INT", "123")
         assert MyTransformer().transform(t) == 123
 
         class MyTransformer(Transformer):
@@ -472,5 +517,5 @@ class TestTrees(TestCase):
         assert MyTransformer().transform(t) is None
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     unittest.main()

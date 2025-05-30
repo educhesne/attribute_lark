@@ -16,7 +16,7 @@ from lark.reconstruct import Reconstructor
 
 from _json_parser import json_grammar
 
-test_json = '''
+test_json = """
     {
         "empty_object" : {},
         "empty_array"  : [],
@@ -25,15 +25,16 @@ test_json = '''
         "strings"      : [ "This", [ "And" , "That", "And a \\"b" ] ],
         "nothing"      : null
     }
-'''
+"""
+
 
 def test_lalr():
-
     json_parser = Lark(json_grammar, maybe_placeholders=False)
     tree = json_parser.parse(test_json)
 
     new_json = Reconstructor(json_parser).reconstruct(tree)
-    print (new_json)
-    print (json.loads(new_json) == json.loads(test_json))
+    print(new_json)
+    print(json.loads(new_json) == json.loads(test_json))
+
 
 test_lalr()

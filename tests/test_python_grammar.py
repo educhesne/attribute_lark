@@ -1,8 +1,7 @@
-import inspect
 import textwrap
 from unittest import TestCase, main
 
-from lark import Lark
+from lark import AttributeLark as Lark
 from lark.indenter import PythonIndenter
 from lark.exceptions import UnexpectedCharacters, UnexpectedToken, ParseError
 
@@ -81,8 +80,14 @@ valid_IMAG_NUMBER = [
     "3.1e4j",
 ]
 
-valid_number = (valid_DEC_NUMBER + valid_HEX_NUMBER + valid_OCT_NUMBER +
-                valid_BIN_NUMBER + valid_FLOAT_NUMBER + valid_IMAG_NUMBER)
+valid_number = (
+    valid_DEC_NUMBER
+    + valid_HEX_NUMBER
+    + valid_OCT_NUMBER
+    + valid_BIN_NUMBER
+    + valid_FLOAT_NUMBER
+    + valid_IMAG_NUMBER
+)
 
 
 invalid_number = [
@@ -126,7 +131,6 @@ invalid_number = [
     "1.4e_1j",
     "1+1.5_j_",
     "1+1.5_j",
-
     "_0",
     "_42",
     "_1.4j",
@@ -179,7 +183,6 @@ valid_match_statements = [
         case name:
             print(f"Hi {name}!")
     """),
-
     # pattern unions
     textwrap.dedent("""
     match something:
@@ -192,7 +195,6 @@ valid_match_statements = [
         case _:
             print("Something else")
     """),
-
     # guards
     textwrap.dedent("""
     match val:
@@ -203,13 +205,12 @@ valid_match_statements = [
         case int():
             return f"Some integer"
     """),
-
     # "as" patterns
     textwrap.dedent("""
     match command.split():
         case ["go", ("north" | "south" | "east" | "west") as direction]:
             current_room = current_room.neighbor(direction)
-    """)
+    """),
 ]
 
 invalid_match_statements = [
@@ -218,13 +219,12 @@ invalid_match_statements = [
     match val:
         pass
     """),
-
     # cases not indented relative to match
     textwrap.dedent("""
     match val:
     case x:
         pass
-    """)
+    """),
 ]
 
 
@@ -232,8 +232,12 @@ class TestPythonParser(TestCase):
     @classmethod
     def setUpClass(cls):
         cls.python_parser = Lark.open_from_package(
-            "lark", "python.lark", ("grammars",),
-            postlex=PythonIndenter(), start=["number", "file_input"])
+            "lark",
+            "python.lark",
+            ("grammars",),
+            postlex=PythonIndenter(),
+            start=["number", "file_input"],
+        )
 
     def _test_parsed_is_this_terminal(self, text, terminal, start):
         tree = self.python_parser.parse(text, start=start)
@@ -309,5 +313,5 @@ class TestPythonParser(TestCase):
         self._test_parsed_is_file_containing_only_this_statement(text, "if_stmt")
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()

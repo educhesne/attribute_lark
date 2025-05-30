@@ -8,7 +8,6 @@ It parses Python 3, translates it to a Python 2 AST, and then outputs the result
 Uses reconstruct_python.py for generating the final Python 2 code.
 """
 
-
 from lark import Lark
 from lark.tree_templates import TemplateConf, TemplateTranslator
 
@@ -33,14 +32,20 @@ TEMPLATE_NAME: "$" NAME
 %ignore COMMENT
 """
 
-parser = Lark(TEMPLATED_PYTHON, start=['single_input', 'file_input', 'eval_input', 'template_start'], postlex=PythonIndenter(), maybe_placeholders=False)
+parser = Lark(
+    TEMPLATED_PYTHON,
+    start=["single_input", "file_input", "eval_input", "template_start"],
+    postlex=PythonIndenter(),
+    maybe_placeholders=False,
+)
 
 
 def parse_template(s):
-    return parser.parse(s + '\n', start='template_start')
+    return parser.parse(s + "\n", start="template_start")
+
 
 def parse_code(s):
-    return parser.parse(s + '\n', start='file_input')
+    return parser.parse(s + "\n", start="file_input")
 
 
 #
@@ -50,14 +55,9 @@ def parse_code(s):
 pytemplate = TemplateConf(parse=parse_template)
 
 translations_3to2 = {
-    'yield from $a':
-	    'for _tmp in $a: yield _tmp',
-
-    'raise $e from $x':
-    	'raise $e',
-
-    '$a / $b':
-	    'float($a) / $b',
+    "yield from $a": "for _tmp in $a: yield _tmp",
+    "raise $e from $x": "raise $e",
+    "$a / $b": "float($a) / $b",
 }
 translations_3to2 = {pytemplate(k): pytemplate(v) for k, v in translations_3to2.items()}
 
@@ -67,28 +67,31 @@ translations_3to2 = {pytemplate(k): pytemplate(v) for k, v in translations_3to2.
 
 python_reconstruct = PythonReconstructor(parser)
 
+
 def translate_py3to2(code):
-	tree = parse_code(code)
-	tree = TemplateTranslator(translations_3to2).translate(tree)
-	return python_reconstruct.reconstruct(tree)
+    tree = parse_code(code)
+    tree = TemplateTranslator(translations_3to2).translate(tree)
+    return python_reconstruct.reconstruct(tree)
 
 
 #
 # Test Code
 #
 
-_TEST_CODE = '''
+_TEST_CODE = """
 if a / 2 > 1:
     yield from [1,2,3]
 else:
     raise ValueError(a) from e
 
-'''
+"""
+
 
 def test():
-	print(_TEST_CODE)
-	print('   ----->    ')
-	print(translate_py3to2(_TEST_CODE))
+    print(_TEST_CODE)
+    print("   ----->    ")
+    print(translate_py3to2(_TEST_CODE))
 
-if __name__ == '__main__':
-	test()
+
+if __name__ == "__main__":
+    test()

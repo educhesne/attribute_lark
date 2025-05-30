@@ -1,12 +1,11 @@
 # coding=utf-8
 
 import json
-import sys
 import unittest
 from itertools import product
 from unittest import TestCase
 
-from lark import Lark
+from lark import AttributeLark as Lark
 from lark.reconstruct import Reconstructor
 
 common = """
@@ -16,11 +15,10 @@ common = """
 
 
 def _remove_ws(s):
-    return s.replace(' ', '').replace('\n', '')
+    return s.replace(" ", "").replace("\n", "")
 
 
 class TestReconstructor(TestCase):
-
     def assert_reconstruct(self, grammar, code, **options):
         parser = Lark(grammar, maybe_placeholders=False, **options)
         tree = parser.parse(code)
@@ -28,13 +26,16 @@ class TestReconstructor(TestCase):
         self.assertEqual(_remove_ws(code), _remove_ws(new))
 
     def test_starred_rule(self):
-        g = """
+        g = (
+            """
         start: item*
         item: NL
             | rule
         rule: WORD ":" NUMBER
         NL: /(\\r?\\n)+\\s*/
-        """ + common
+        """
+            + common
+        )
 
         code = """
         Elephants: 12
@@ -43,11 +44,14 @@ class TestReconstructor(TestCase):
         self.assert_reconstruct(g, code)
 
     def test_starred_group(self):
-        g = """
+        g = (
+            """
         start: (rule | NL)*
         rule: WORD ":" NUMBER
         NL: /(\\r?\\n)+\\s*/
-        """ + common
+        """
+            + common
+        )
 
         code = """
         Elephants: 12
@@ -56,14 +60,17 @@ class TestReconstructor(TestCase):
         self.assert_reconstruct(g, code)
 
     def test_alias(self):
-        g = """
+        g = (
+            """
         start: line*
         line: NL
             | rule
             | "hello" -> hi
         rule: WORD ":" NUMBER
         NL: /(\\r?\\n)+\\s*/
-        """ + common
+        """
+            + common
+        )
 
         code = """
         Elephants: 12
@@ -73,13 +80,16 @@ class TestReconstructor(TestCase):
         self.assert_reconstruct(g, code)
 
     def test_keep_tokens(self):
-        g = """
+        g = (
+            """
         start: (NL | stmt)*
         stmt: var op var
         !op: ("+" | "-" | "*" | "/")
         var: WORD
         NL: /(\\r?\\n)+\\s*/
-        """ + common
+        """
+            + common
+        )
 
         code = """
         a+b
@@ -88,21 +98,24 @@ class TestReconstructor(TestCase):
         self.assert_reconstruct(g, code)
 
     def test_expand_rule(self):
-        g = """
+        g = (
+            """
         ?start: (NL | mult_stmt)*
         ?mult_stmt: sum_stmt ["*" sum_stmt]
         ?sum_stmt: var ["+" var]
         var: WORD
         NL: /(\\r?\\n)+\\s*/
-        """ + common
+        """
+            + common
+        )
 
-        code = ['a', 'a*b', 'a+b', 'a*b+c', 'a+b*c', 'a+b*c+d']
+        code = ["a", "a*b", "a+b", "a*b+c", "a+b*c", "a+b*c+d"]
 
         for c in code:
             self.assert_reconstruct(g, c)
 
     def test_json_example(self):
-        test_json = '''
+        test_json = """
             {
                 "empty_object" : {},
                 "empty_array"  : [],
@@ -111,7 +124,7 @@ class TestReconstructor(TestCase):
                 "strings"      : [ "This", [ "And" , "That", "And a \\"b" ] ],
                 "nothing"      : null
             }
-        '''
+        """
 
         json_grammar = r"""
             ?start: value
@@ -150,7 +163,17 @@ class TestReconstructor(TestCase):
         c: "c"
         _d: "d"
         """
-        examples = list(map(''.join, product(('', 'a'), ('', 'b'), ('', 'c'), ('', 'd'), )))
+        examples = list(
+            map(
+                "".join,
+                product(
+                    ("", "a"),
+                    ("", "b"),
+                    ("", "c"),
+                    ("", "d"),
+                ),
+            )
+        )
         for code in examples:
             self.assert_reconstruct(g, code, keep_all_tokens=True)
 
@@ -162,21 +185,27 @@ class TestReconstructor(TestCase):
         tokens (e.g., `+=`) to mismatch between the two grammars.
         """
 
-        g1 = """
+        g1 = (
+            """
         start: (NL | stmt)*
         stmt: "keyword" var op var
         !op: ("+=" | "-=" | "*=" | "/=")
         var: WORD
         NL: /(\\r?\\n)+\\s*/
-        """ + common
+        """
+            + common
+        )
 
-        g2 = """
+        g2 = (
+            """
         start: (NL | stmt)*
         stmt: "குறிப்பு" var op var
         !op: ("+=" | "-=" | "*=" | "/=")
         var: WORD
         NL: /(\\r?\\n)+\\s*/
-        """ + common
+        """
+            + common
+        )
 
         code = """
         keyword x += y
@@ -191,5 +220,5 @@ class TestReconstructor(TestCase):
         assert l2.parse(code2) == tree
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     unittest.main()

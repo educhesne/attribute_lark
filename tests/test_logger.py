@@ -1,6 +1,6 @@
 import logging
 from contextlib import contextmanager
-from lark import Lark, logger
+from attribute_lark import AttributeLark, logger
 from unittest import TestCase, main, skipIf
 
 from io import StringIO
@@ -9,6 +9,7 @@ try:
     import interegular
 except ImportError:
     interegular = None
+
 
 @contextmanager
 def capture_log():
@@ -20,17 +21,17 @@ def capture_log():
     del logger.handlers[:]
     logger.addHandler(orig_handler)
 
-class Testlogger(TestCase):
 
+class Testlogger(TestCase):
     def test_debug(self):
         logger.setLevel(logging.DEBUG)
-        collision_grammar = '''
+        collision_grammar = """
         start: as as
         as: a*
         a: "a"
-        '''
+        """
         with capture_log() as log:
-            Lark(collision_grammar, debug=True)
+            AttributeLark.from_string(collision_grammar, debug=True)
 
         log = log.getvalue()
         # since there are conflicts about A
@@ -39,40 +40,42 @@ class Testlogger(TestCase):
 
     def test_non_debug(self):
         logger.setLevel(logging.WARNING)
-        collision_grammar = '''
+        collision_grammar = """
         start: as as
         as: a*
         a: "a"
-        '''
+        """
         with capture_log() as log:
-            Lark(collision_grammar, debug=False)
+            AttributeLark.from_string(collision_grammar, debug=False)
         log = log.getvalue()
         # no log message
         self.assertEqual(log, "")
 
     def test_loglevel_higher(self):
         logger.setLevel(logging.ERROR)
-        collision_grammar = '''
+        collision_grammar = """
         start: as as
         as: a*
         a: "a"
-        '''
+        """
         with capture_log() as log:
-            Lark(collision_grammar, debug=True)
+            AttributeLark.from_string(collision_grammar, debug=True)
         log = log.getvalue()
         # no log message
         self.assertEqual(len(log), 0)
 
-    @skipIf(interegular is None, "interegular is not installed, can't test regex collisions")
+    @skipIf(
+        interegular is None, "interegular is not installed, can't test regex collisions"
+    )
     def test_regex_collision(self):
         logger.setLevel(logging.WARNING)
-        collision_grammar = '''
+        collision_grammar = """
         start: A | B
         A: /a+/
         B: /(a|b)+/
-        '''
+        """
         with capture_log() as log:
-            Lark(collision_grammar)
+            AttributeLark.from_string(collision_grammar)
 
         log = log.getvalue()
         # since there are conflicts between A and B
@@ -80,20 +83,22 @@ class Testlogger(TestCase):
         self.assertIn("A", log)
         self.assertIn("B", log)
 
-    @skipIf(interegular is None, "interegular is not installed, can't test regex collisions")
+    @skipIf(
+        interegular is None, "interegular is not installed, can't test regex collisions"
+    )
     def test_no_regex_collision(self):
         logger.setLevel(logging.WARNING)
-        collision_grammar = '''
+        collision_grammar = """
         start: A " " B
         A: /a+/
         B: /(a|b)+/
-        '''
+        """
         with capture_log() as log:
-            Lark(collision_grammar)
+            AttributeLark.from_string(collision_grammar)
 
         log = log.getvalue()
         self.assertEqual(log, "")
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()

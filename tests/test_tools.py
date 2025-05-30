@@ -2,7 +2,7 @@ from __future__ import absolute_import, print_function
 
 from unittest import TestCase, main
 
-from lark import Lark
+from lark import AttributeLark as Lark
 from lark.tree import Tree
 from lark.tools import standalone
 
@@ -18,7 +18,7 @@ class TestStandalone(TestCase):
         standalone.gen_standalone(Lark(grammar), out=code_buf, compress=compress)
         code = code_buf.getvalue()
 
-        context = {'__doc__': None, '__name__': 'test_standalone'}
+        context = {"__doc__": None, "__name__": "test_standalone"}
         exec(code, context)
         return context
 
@@ -35,21 +35,21 @@ class TestStandalone(TestCase):
 
         context = self._create_standalone(grammar)
 
-        _Lark = context['Lark_StandAlone']
+        _Lark = context["Lark_StandAlone"]
         l = _Lark()
-        x = l.parse('12 elephants')
-        self.assertEqual(x.children, ['12', 'elephants'])
-        x = l.parse('16 candles')
-        self.assertEqual(x.children, ['16', 'candles'])
+        x = l.parse("12 elephants")
+        self.assertEqual(x.children, ["12", "elephants"])
+        x = l.parse("16 candles")
+        self.assertEqual(x.children, ["16", "candles"])
 
-        self.assertRaises(context['UnexpectedToken'], l.parse, 'twelve monkeys')
-        self.assertRaises(context['UnexpectedToken'], l.parse, 'twelve')
-        self.assertRaises(context['UnexpectedCharacters'], l.parse, '$ talks')
+        self.assertRaises(context["UnexpectedToken"], l.parse, "twelve monkeys")
+        self.assertRaises(context["UnexpectedToken"], l.parse, "twelve")
+        self.assertRaises(context["UnexpectedCharacters"], l.parse, "$ talks")
 
         context = self._create_standalone(grammar, compress=True)
-        _Lark = context['Lark_StandAlone']
+        _Lark = context["Lark_StandAlone"]
         l = _Lark()
-        x = l.parse('12 elephants')
+        x = l.parse("12 elephants")
 
     def test_interactive(self):
         grammar = """
@@ -58,18 +58,18 @@ class TestStandalone(TestCase):
                 B: "b"
         """
         context = self._create_standalone(grammar)
-        parser: Lark = context['Lark_StandAlone']()
+        parser: Lark = context["Lark_StandAlone"]()
 
         ip = parser.parse_interactive()
 
-        UnexpectedToken = context['UnexpectedToken']
-        Token = context['Token']
+        UnexpectedToken = context["UnexpectedToken"]
+        Token = context["Token"]
 
         self.assertRaises(UnexpectedToken, ip.feed_eof)
         self.assertRaises(TypeError, ip.exhaust_lexer)
-        ip.feed_token(Token('A', 'a'))
+        ip.feed_token(Token("A", "a"))
         res = ip.feed_eof()
-        self.assertEqual(res, Tree('start', ['a']))
+        self.assertEqual(res, Tree("start", ["a"]))
 
         ip = parser.parse_interactive("ab")
 
@@ -80,16 +80,18 @@ class TestStandalone(TestCase):
         self.assertEqual(ip_copy.lexer_thread.state, ip.lexer_thread.state)
         self.assertIsNot(ip_copy.parser_state, ip.parser_state)
         self.assertIsNot(ip_copy.lexer_thread.state, ip.lexer_thread.state)
-        self.assertIsNot(ip_copy.lexer_thread.state.line_ctr, ip.lexer_thread.state.line_ctr)
+        self.assertIsNot(
+            ip_copy.lexer_thread.state.line_ctr, ip.lexer_thread.state.line_ctr
+        )
 
         res = ip.feed_eof(ip.lexer_thread.state.last_token)
-        self.assertEqual(res, Tree('start', ['a', 'b']))
+        self.assertEqual(res, Tree("start", ["a", "b"]))
         self.assertRaises(UnexpectedToken, ip.feed_eof)
 
-        self.assertRaises(UnexpectedToken, ip_copy.feed_token, Token('A', 'a'))
-        ip_copy.feed_token(Token('B', 'b'))
+        self.assertRaises(UnexpectedToken, ip_copy.feed_token, Token("A", "a"))
+        ip_copy.feed_token(Token("B", "b"))
         res = ip_copy.feed_eof()
-        self.assertEqual(res, Tree('start', ['a', 'b', 'b']))
+        self.assertEqual(res, Tree("start", ["a", "b", "b"]))
 
     def test_contextual(self):
         grammar = """
@@ -100,35 +102,38 @@ class TestStandalone(TestCase):
 
         context = self._create_standalone(grammar)
 
-        _Lark = context['Lark_StandAlone']
+        _Lark = context["Lark_StandAlone"]
         l = _Lark()
-        x = l.parse('ABAB')
+        x = l.parse("ABAB")
 
-        _v_args = context['v_args']
+        _v_args = context["v_args"]
+
         @_v_args(inline=True)
-        class T(context['Transformer']):
+        class T(context["Transformer"]):
             def a(self):
-                return 'a'
+                return "a"
+
             def b(self):
-                return 'b'
+                return "b"
 
             start = _v_args(inline=False)(list)
 
         x = T().transform(x)
-        self.assertEqual(x, ['a', 'b'])
+        self.assertEqual(x, ["a", "b"])
 
         l2 = _Lark(transformer=T())
-        x = l2.parse('ABAB')
-        self.assertEqual(x, ['a', 'b'])
+        x = l2.parse("ABAB")
+        self.assertEqual(x, ["a", "b"])
 
     def test_postlex(self):
         from lark.indenter import Indenter
+
         class MyIndenter(Indenter):
-            NL_type = '_NEWLINE'
-            OPEN_PAREN_types = ['LPAR', 'LSQB', 'LBRACE']
-            CLOSE_PAREN_types = ['RPAR', 'RSQB', 'RBRACE']
-            INDENT_type = '_INDENT'
-            DEDENT_type = '_DEDENT'
+            NL_type = "_NEWLINE"
+            OPEN_PAREN_types = ["LPAR", "LSQB", "LBRACE"]
+            CLOSE_PAREN_types = ["RPAR", "RSQB", "RBRACE"]
+            INDENT_type = "_INDENT"
+            DEDENT_type = "_DEDENT"
             tab_len = 8
 
         grammar = r"""
@@ -137,14 +142,14 @@ class TestStandalone(TestCase):
         """
 
         context = self._create_standalone(grammar)
-        _Lark = context['Lark_StandAlone']
+        _Lark = context["Lark_StandAlone"]
 
         l = _Lark(postlex=MyIndenter())
-        x = l.parse('()\n')
-        self.assertEqual(x, Tree('start', []))
+        x = l.parse("()\n")
+        self.assertEqual(x, Tree("start", []))
         l = _Lark(postlex=MyIndenter())
-        x = l.parse('(\n)\n')
-        self.assertEqual(x, Tree('start', []))
+        x = l.parse("(\n)\n")
+        self.assertEqual(x, Tree("start", []))
 
     def test_transformer(self):
         grammar = r"""
@@ -168,12 +173,15 @@ class TestStandalone(TestCase):
         parser = _Lark(transformer=MyTransformer())
         self.assertEqual(
             parser.parse("FOO(BAR)"),
-            _Tree("start", [
-                _Tree("rule_is_transformed", []),
-                _Token("SOME_TERMINAL", "token is transformed")
-            ])
+            _Tree(
+                "start",
+                [
+                    _Tree("rule_is_transformed", []),
+                    _Token("SOME_TERMINAL", "token is transformed"),
+                ],
+            ),
         )
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()

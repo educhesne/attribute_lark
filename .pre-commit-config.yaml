@@ -31,8 +31,8 @@ repos:
     - id: trailing-whitespace
       exclude: '(^tests/.*\.lark|\.svg)$'
 
-- repo: https://github.com/codespell-project/codespell
-  rev: v2.2.2
-  hooks:
-    - id: codespell
-      args: ["-L", "nd,iif,ot,datas"]
+# - repo: https://github.com/codespell-project/codespell
+#   rev: v2.2.2
+#   hooks:
+#     - id: codespell
+#       args: ["-L", "nd,iif,ot,datas"]

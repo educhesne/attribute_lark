@@ -17,9 +17,10 @@ Another approach is to use the Earley algorithm.
 It will handle more cases than the contextual lexer, but at the cost of performance.
 See examples/conf_earley.py for an example of that approach.
 """
-from lark import Lark
 
-parser = Lark(r"""
+from attribute_lark import AttributeLark
+
+parser = AttributeLark.from_string(r"""
         start: _NL? section+
         section: "[" NAME "]" _NL item+
         item: NAME "=" VALUE? _NL
@@ -40,4 +41,4 @@ this="that",4
 empty=
 """
 
-print(parser.parse(sample_conf).pretty())
+print(parser.parse(sample_conf)[0].pretty())

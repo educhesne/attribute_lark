@@ -17,8 +17,9 @@ of a line will `confuse Lark`_.
 
 .. _`confuse Lark`: https://github.com/lark-parser/lark/issues/863
 """
-from lark import Lark
-from lark.indenter import Indenter
+
+from attribute_lark import AttributeLark
+from attribute_lark.indenter import Indenter
 
 tree_grammar = r"""
     %import common.CNAME -> NAME
@@ -33,13 +34,15 @@ tree_grammar = r"""
     _NL: (/\r?\n[\t ]*/ | SH_COMMENT)+
 """
 
+
 class TreeIndenter(Indenter):
-    NL_type = '_NL'
+    NL_type = "_NL"
     OPEN_PAREN_types = []
     CLOSE_PAREN_types = []
-    INDENT_type = '_INDENT'
-    DEDENT_type = '_DEDENT'
+    INDENT_type = "_INDENT"
+    DEDENT_type = "_DEDENT"
     tab_len = 8
+
 
 parser = Lark(tree_grammar, postlex=TreeIndenter())
 
@@ -54,8 +57,10 @@ a
         g
 """
 
+
 def test():
     print(parser.parse(test_tree).pretty())
 
-if __name__ == '__main__':
+
+if __name__ == "__main__":
     test()

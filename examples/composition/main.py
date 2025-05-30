@@ -19,6 +19,7 @@ file format that allows both CSV and JSON to co-exist.
   or being imported, or who is doing the importing.
 
 """
+
 from pathlib import Path
 from lark import Lark
 from json import dumps
@@ -29,20 +30,25 @@ from eval_json import JsonTreeToJson
 
 __dir__ = Path(__file__).parent
 
+
 class Storage(Transformer):
     def start(self, children):
         return children
 
-storage_transformer = merge_transformers(Storage(), csv=CsvTreeToPandasDict(), json=JsonTreeToJson())
+
+storage_transformer = merge_transformers(
+    Storage(), csv=CsvTreeToPandasDict(), json=JsonTreeToJson()
+)
 
 parser = Lark.open("storage.lark", rel_to=__file__)
 
+
 def main():
-    json_tree = parser.parse(dumps({"test": "a", "dict": { "list": [1, 1.2] }}))
+    json_tree = parser.parse(dumps({"test": "a", "dict": {"list": [1, 1.2]}}))
     res = storage_transformer.transform(json_tree)
     print("Just JSON: ", res)
 
-    csv_json_tree = parser.parse(open(__dir__ / 'combined_csv_and_json.txt').read())
+    csv_json_tree = parser.parse(open(__dir__ / "combined_csv_and_json.txt").read())
     res = storage_transformer.transform(csv_json_tree)
     print("JSON + CSV: ", dumps(res, indent=2))
 

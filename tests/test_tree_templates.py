@@ -3,7 +3,7 @@ from __future__ import absolute_import
 import unittest
 from copy import deepcopy
 
-from lark import Lark, Tree, Token
+from lark import AttributeLark as Lark, Tree, Token
 from lark.exceptions import MissingVariableError
 from lark.tree_templates import TemplateConf, Template, TemplateTranslator
 
@@ -89,9 +89,9 @@ class TestTreeTemplatesConf(unittest.TestCase):
 
     def test_template_match__only_tree(self):
         "This test might become irrelevant in the future"
-        template_tree = Tree('bar', [Tree("var", children=["$foo"])])
+        template_tree = Tree("bar", [Tree("var", children=["$foo"])])
         template = Template(template_tree)
-        self.assertRaises(TypeError, template.match, Tree('bar', ['BAD']))
+        self.assertRaises(TypeError, template.match, Tree("bar", ["BAD"]))
 
 
 class TestTreeTemplatesTemplate(unittest.TestCase):

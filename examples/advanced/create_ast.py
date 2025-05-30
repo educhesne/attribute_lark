@@ -14,8 +14,8 @@ import sys
 from typing import List
 from dataclasses import dataclass
 
-from lark import Lark, ast_utils, Transformer, v_args
-from lark.tree import Meta
+from attribute_lark import AttributeLark, ast_utils, Transformer, v_args
+from attribute_lark.tree import Meta
 
 this_module = sys.modules[__name__]
 
@@ -27,35 +27,43 @@ class _Ast(ast_utils.Ast):
     # This will be skipped by create_transformer(), because it starts with an underscore
     pass
 
+
 class _Statement(_Ast):
     # This will be skipped by create_transformer(), because it starts with an underscore
     pass
 
+
 @dataclass
 class Value(_Ast, ast_utils.WithMeta):
     "Uses WithMeta to include line-number metadata in the meta attribute"
+
     meta: Meta
     value: object
+
 
 @dataclass
 class Name(_Ast):
     name: str
+
 
 @dataclass
 class CodeBlock(_Ast, ast_utils.AsList):
     # Corresponds to code_block in the grammar
     statements: List[_Statement]
 
+
 @dataclass
 class If(_Statement):
     cond: Value
     then: CodeBlock
+
 
 @dataclass
 class SetVar(_Statement):
     # Corresponds to set_var in the grammar
     name: str
     value: Value
+
 
 @dataclass
 class Print(_Statement):
@@ -76,11 +84,12 @@ class ToAst(Transformer):
     def start(self, x):
         return x
 
+
 #
 #   Define Parser
 #
 
-parser = Lark("""
+parser = AttributeLark.from_string("""
     start: code_block
 
     code_block: statement+
@@ -97,24 +106,27 @@ parser = Lark("""
     %import python (NAME, STRING, DEC_NUMBER)
     %import common.WS
     %ignore WS
-    """
-)
+    """)
 
 transformer = ast_utils.create_transformer(this_module, ToAst())
 
+
 def parse(text):
-    tree = parser.parse(text)
+    tree = parser.parse(text)[0]
     return transformer.transform(tree)
+
 
 #
 #   Test
 #
 
-if __name__ == '__main__':
-    print(parse("""
+if __name__ == "__main__":
+    print(
+        parse("""
         a = 1;
         if a {
             print "a is 1";
             a = 2;
         }
-    """))
+    """)
+    )

@@ -2,6 +2,7 @@
 
 from lark import Transformer
 
+
 class CsvTreeToPandasDict(Transformer):
     INT = int
     FLOAT = float
