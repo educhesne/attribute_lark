@@ -105,7 +105,7 @@ class InteractiveParser(Generic[StateT]):
                 try:
                     tok = self.lexer.next_token(lexer_state)
                 except UnexpectedCharacters as e:
-                    if lexer_state.scan_pos == len(lexer_state.text):
+                    if (lexer_state.scan_pos == len(lexer_state.text)) and self.lexer.is_active_state(lexer_state):
                         return
                     else:
                         raise e
