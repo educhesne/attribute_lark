@@ -5,7 +5,6 @@ from typing import (
     Type,
     List,
     Dict,
-    Iterator,
     Callable,
     Union,
     Optional,
@@ -26,7 +25,7 @@ from .parsers.pushdown_automata import ParseConf, PushDownAutomata
 from .parsers.lalr_analysis import LALR_Analyzer
 
 from .exceptions import ConfigurationError, assert_config
-from .utils import Serialize, FS, logger, TextOrSlice
+from .utils import Serialize, FS, logger
 from .load_grammar import (
     load_grammar,
     FromPackageLoader,
@@ -39,7 +38,7 @@ from .common import LexerConf, ParserConf, _LexerArgType, ParserCallbacks
 from .lexer import TerminalDef, FSMLexer, Token, PostLex
 from .parse_tree_builder import ParseTreeBuilder
 from .grammar import Rule
-from .parsers.parser import Parser, InteractiveParser
+from .parsers.parser import Parser, InteractiveParser, InteractiveParserState
 
 
 class LarkOptions(Serialize):
@@ -416,60 +415,16 @@ class AttributeLark(Serialize):
     def __repr__(self):
         return "Lark(open(%r), lexer=%r, ...)" % (self.source_path, self.options.lexer)
 
-    def lex(self, text: str) -> Iterator[Token]:
-        """Only lex (and postlex) the text, without parsing it. Only relevant when lexer='basic'
-
-        :raises UnexpectedCharacters: In case the lexer cannot find a suitable match.
-        """
-        stream = self.lexer.lex(None)
-        if self.options.postlex:
-            return self.options.postlex.process(stream)
-        return stream
-
-    def get_terminal(self, name: str) -> TerminalDef:
-        """Get information about a terminal"""
-        return self._terminals_dict[name]
-
     def parse_interactive(
-        self, text: Optional[TextOrSlice] = None, start: Optional[str] = None
-    ) -> "InteractiveParser":
-        """Start an interactive parsing session.
-
-        Parameters:
-            text (TextOrSlice, optional): Text to be parsed. Required for ``resume_parse()``.
-            start (str, optional): Start symbol
-
-        Returns:
-            A new InteractiveParser instance.
-
-        See Also: ``Lark.parse()``
-        """
-        return self.parser.parse_interactive(text, start=start)
+        self, text: str, start: Optional[str] = None
+    ) -> List[InteractiveParserState]:
+        return self.interactive_parser.parse_interactive(text, start=start)
 
     def parse(
         self,
         text: str,
         start: Optional[str] = None,
     ) -> Tuple["ParseTree", Any]:
-        """Parse the given text, according to the options provided.
-
-        Parameters:
-            text (TextOrSlice): Text to be parsed, as `str` or `bytes`.
-                TextSlice may also be used, but only when lexer='basic' or 'contextual'.
-            start (str, optional): Required if Lark was given multiple possible start symbols (using the start option).
-            on_error (function, optional): if provided, will be called on UnexpectedInput error,
-                with the exception as its argument. Return true to resume parsing, or false to raise the exception.
-                LALR only. See examples/advanced/error_handling.py for an example of how to use on_error.
-
-        Returns:
-            If a transformer is supplied to ``__init__``, returns whatever is the
-            result of the transformation. Otherwise, returns a Tree instance.
-
-        :raises UnexpectedInput: On a parse error, one of these sub-exceptions will rise:
-                ``UnexpectedCharacters``, ``UnexpectedToken``, or ``UnexpectedEOF``.
-                For convenience, these sub-exceptions also inherit from ``ParserError`` and ``LexerError``.
-
-        """
         return self.parser.parse(text, start=start)
 
 

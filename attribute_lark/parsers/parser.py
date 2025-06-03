@@ -101,7 +101,7 @@ class InteractiveParser(Generic[StateT]):
         self.lexer = lexer
 
     def initial_interactive_state(
-        self, text: str, start: str = "start"
+        self, text: str, start: Optional[str] = "start"
     ) -> InteractiveParserState[StateT]:
         PDA_state = self.PDA.get_initial_state(start)
         lookahead_PDA_state, lookahead_shifts = self.PDA.get_lookahead_states(PDA_state)
@@ -111,7 +111,7 @@ class InteractiveParser(Generic[StateT]):
         )
 
     def parse_interactive(
-        self, text: str, start: str = "start"
+        self, text: str, start: Optional[str] = "start"
     ) -> List[InteractiveParserState[StateT]]:
         state = self.initial_interactive_state(text, start=start)
         state = self.advance_interactive_state(state)

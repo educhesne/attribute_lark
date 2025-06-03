@@ -18,8 +18,8 @@ of a line will `confuse Lark`_.
 .. _`confuse Lark`: https://github.com/lark-parser/lark/issues/863
 """
 
-from attribute_lark import AttributeLark
 from attribute_lark.indenter import Indenter
+from attribute_lark import AttributeLark
 
 tree_grammar = r"""
     %import common.CNAME -> NAME
@@ -44,7 +44,7 @@ class TreeIndenter(Indenter):
     tab_len = 8
 
 
-parser = Lark(tree_grammar, postlex=TreeIndenter())
+parser = AttributeLark.from_string(tree_grammar, postlex=TreeIndenter())
 
 test_tree = """
 a
@@ -59,7 +59,7 @@ a
 
 
 def test():
-    print(parser.parse(test_tree).pretty())
+    print(parser.parse(test_tree)[0].pretty())
 
 
 if __name__ == "__main__":
