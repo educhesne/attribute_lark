@@ -1,5 +1,5 @@
 from .pushdown_automata import PDAState, PushDownAutomata, Shift
-from ..lexer import FSMLexer, FSMLexerState, FSMState
+from ..lexer import FSMLexer, FSMLexerState, FSMState, FSM
 from .lalr_analysis import StateT
 from ..exceptions import UnexpectedCharacters
 from ..tree import ParseTree
@@ -47,6 +47,8 @@ class InteractiveParserState(Generic[StateT]):
         self.lexer_state = lexer_state
         self.lookahead_shifts = lookahead_shifts
 
+        self._lookahead_ctx_fsm: Dict[str, Optional[FSM]] = {}
+
     def __getitem__(
         self, key
     ) -> Tuple[PDAState[StateT], Optional[Tuple[int, FSMState]], Optional[Shift]]:
@@ -55,6 +57,36 @@ class InteractiveParserState(Generic[StateT]):
             self.lexer_state.dict_states.get(key, None),
             self.lookahead_shifts.get(key, None),
         )
+
+    @property
+    def lookahead_ctx_fsm(self):
+        class LazyDictCtxFSM:
+            def __init__(self, parent: InteractiveParserState):
+                self._parent = parent
+
+            def __getitem__(self, key):
+                if key not in self._parent.lookahead_shifts:
+                    raise KeyError(key)
+
+                if key not in self._parent._lookahead_ctx_fsm.get(key, None):
+                    shift = self._parent.lookahead_shifts[key]
+
+                    if shift is None or not shift.pattern:
+                        self._parent._lookahead_ctx_fsm[key] = None
+                    else:
+                        self._parent._lookahead_ctx_fsm[key] = FSM.from_regex(
+                            shift.pattern
+                        )
+
+                return self._parent._lookahead_ctx_fsm[key]
+
+            def __contains__(self, key):
+                return key in self._parent.lookahead_shifts
+
+            def keys(self):
+                return self._parent.lookahead_shifts.keys()
+
+        return LazyDictCtxFSM(self)
 
     def __copy__(self) -> "InteractiveParserState[StateT]":
         return self.__class__(
@@ -76,8 +108,11 @@ class InteractiveParser(Generic[StateT]):
         self, text: str, start: str = "start"
     ) -> InteractiveParserState[StateT]:
         PDA_state = self.PDA.get_initial_state(start)
+        lookahead_PDA_state, lookahead_shifts = self.PDA.get_lookahead_states(PDA_state)
         lexer_state = self.lexer.initial_lexer_state(text)
-        return self.get_lookahead_interactive_state(PDA_state, lexer_state)
+        return self.filter_interactive_state(
+            InteractiveParserState(lookahead_PDA_state, lexer_state, lookahead_shifts)
+        )
 
     def parse_interactive(
         self, text: str, start: str = "start"
@@ -122,24 +157,40 @@ class InteractiveParser(Generic[StateT]):
         self, state: InteractiveParserState[StateT]
     ) -> InteractiveParserState[StateT]:
         """
-        Filter the interactive parser state by removing inactive states.
+        Filter interactive parser state based on lexer state and lookahead states.
         Parameters
         ----------
         state : InteractiveParserState[StateT]
-            The current state of the interactive parser containing lookahead PDA state,
+            Current interactive parser state containing lookahead PDA state,
             shifts and lexer state.
         Returns
         -------
         InteractiveParserState[StateT]
-            A new filtered state containing only active states that are present in both
-            the lexer and PDA states, preserving end state if present.
+            Filtered parser state containing only valid active states based on
+            current scan prefix matching.
+        Notes
+        -----
+        Filters lexer and lookahead states by keeping only those states whose context FSM
+        matches the current scan as a prefix when it exists. Special $END state is preserved
+        if present.
         """
 
         lookahead_PDA_state = state.lookahead_PDA_state
         lookahead_shifts = state.lookahead_shifts
         lexer_state = state.lexer_state
+        self.lexer.keep_active_states(lexer_state)
+        current_scan = lexer_state.current_scan
 
-        keys = set(lexer_state.dict_states.keys()) & set(lookahead_PDA_state)
+        keys = []
+        for name, _ in lexer_state.dict_states.items():
+            ctx_fsm = state.lookahead_ctx_fsm[name]
+            if ctx_fsm is not None:
+                if ctx_fsm.is_prefix(current_scan):
+                    keys.append(name)
+            else:
+                keys.append(name)
+
+        keys = set(keys) & set(lookahead_PDA_state)
         is_end = set(["$END"]) if "$END" in lookahead_PDA_state.keys() else set()
         active_lookahead_states = _subdict(lookahead_PDA_state, keys | is_end)
         lexer_state.dict_states = _subdict(lexer_state.dict_states, keys)
@@ -197,22 +248,21 @@ class InteractiveParser(Generic[StateT]):
         PDA_state = None
 
         for token in self.lexer.postlexer.process(token_iterator()):
-            self.lexer.keep_active_states(lexer_state)
-            if len(lexer_state.dict_states) > 0:
-                if PDA_state is not None:
-                    lookahead_PDA_state, lookahead_shifts = (
-                        self.PDA.get_lookahead_states(copy(PDA_state))
+            if PDA_state is not None:
+                lookahead_PDA_state, lookahead_shifts = self.PDA.get_lookahead_states(
+                    copy(PDA_state)
+                )
+                lookahead_state = InteractiveParserState(
+                    lookahead_PDA_state, copy(lexer_state), lookahead_shifts
+                )
+            else:
+                lookahead_state = copy(
+                    InteractiveParserState(
+                        lookahead_PDA_state, lexer_state, state.lookahead_shifts
                     )
-                    lookahead_state = InteractiveParserState(
-                        lookahead_PDA_state, copy(lexer_state), lookahead_shifts
-                    )
-                else:
-                    lookahead_state = copy(
-                        InteractiveParserState(
-                            lookahead_PDA_state, lexer_state, state.lookahead_shifts
-                        )
-                    )
+                )
 
+            if len(lexer_state.dict_states) > 0:
                 active_interactive_states.append(
                     self.filter_interactive_state(lookahead_state)
                 )
