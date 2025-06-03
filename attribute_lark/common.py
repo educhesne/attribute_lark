@@ -35,7 +35,6 @@ class LexerConf(Serialize):
     postlex: "Optional[PostLex]"
     g_regex_flags: int
     skip_validation: bool
-    use_bytes: bool
     lexer_type: Optional[_LexerArgType]
     strict: bool
 
@@ -56,7 +55,6 @@ class LexerConf(Serialize):
         self.postlex = postlex
         self.g_regex_flags = g_regex_flags
         self.skip_validation = skip_validation
-        self.use_bytes = use_bytes
         self.strict = strict
         self.lexer_type = None
 
@@ -70,7 +68,6 @@ class LexerConf(Serialize):
             deepcopy(self.postlex, memo),
             deepcopy(self.g_regex_flags, memo),
             deepcopy(self.skip_validation, memo),
-            deepcopy(self.use_bytes, memo),
         )
 
 

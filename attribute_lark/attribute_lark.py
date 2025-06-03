@@ -41,10 +41,11 @@ class AttributeLarkOptions(Serialize):
     start: List[str]
     debug: bool
     strict: bool
-    propagate_positions: bool  # Simplified to just bool
+    propagate_positions: bool
     lexer: _LexerArgType
     postlex: Optional[PostLex]
     priority: 'Optional[Literal["auto", "normal", "invert"]]'
+    g_regex_flags: int
     ordered_sets: bool
     edit_terminals: Optional[Callable[[TerminalDef], TerminalDef]]
     import_paths: "List[Union[str, Callable[[Union[None, str, PackageResource], str], Tuple[str, str]]]]"
@@ -61,6 +62,8 @@ class AttributeLarkOptions(Serialize):
             Throw an exception on any potential ambiguity, including shift/reduce conflicts, and regex collisions
     propagate_positions
             When True, propagates positional information through the parse tree
+    g_regex_flags
+            Flags that are applied to all terminals (both regex and strings)
     ordered_sets
             Use ordered sets for more deterministic parsing (Default: ``True``)
 
@@ -87,6 +90,7 @@ class AttributeLarkOptions(Serialize):
         "priority": "normal",
         "propagate_positions": False,
         "edit_terminals": None,
+        'g_regex_flags': 0,
         "ordered_sets": True,
         "import_paths": [],
         "source_path": None,
@@ -185,7 +189,6 @@ class AttributeLark(Serialize):
             self.ignore_tokens,
             self.options.postlex,
             self.options.g_regex_flags,
-            use_bytes=self.options.use_bytes,
             strict=self.options.strict,
         )
         self.lexer = FSMLexer.from_conf(
@@ -212,10 +215,10 @@ class AttributeLark(Serialize):
     def _prepare_callbacks(self) -> ParserCallbacks:
         callbacks = ParseTreeBuilder(
             self.rules,
-            self.options.tree_class or Tree,
+            Tree,
             self.options.propagate_positions,
-            self.options.maybe_placeholders,
-        ).create_callback(self.options.transformer)
+            False,
+        ).create_callback(None)
         return callbacks
 
     def _build_pda(self) -> PushDownAutomata:

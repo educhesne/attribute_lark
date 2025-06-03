@@ -32,22 +32,19 @@ class InteractiveParserState(Generic[StateT]):
     lookahead_PDA_state: Dict[str, PDAState[StateT]]
     lexer_state: FSMLexerState
     lookahead_shifts: Dict[str, Shift]
+    _lookahead_ctx_fsm: Dict[str, Optional[FSM]]
 
     def __init__(
         self,
         lookahead_PDA_state: Dict[str, PDAState[StateT]],
         lexer_state: FSMLexerState,
         lookahead_shifts: Dict[str, Shift],
+        _lookahead_ctx_fsm: Dict[str, Optional[FSM]]={}
     ):
-        assert set(lookahead_PDA_state.keys()).symmetric_difference(
-            set(lexer_state.dict_states.keys())
-        ) <= set(["$END"])
-
         self.lookahead_PDA_state = lookahead_PDA_state
         self.lexer_state = lexer_state
         self.lookahead_shifts = lookahead_shifts
-
-        self._lookahead_ctx_fsm: Dict[str, Optional[FSM]] = {}
+        self._lookahead_ctx_fsm = _lookahead_ctx_fsm
 
     def __getitem__(
         self, key
@@ -143,12 +140,6 @@ class InteractiveParser(Generic[StateT]):
         end_state = self.PDA.feed_eos(most_advanced_state.lookahead_PDA_state["$END"])
         return end_state
 
-    def finish_parser(
-        self, state_list: List[InteractiveParserState[StateT]]
-    ) -> Tuple[ParseTree, Any]:
-        end_state = self.feed_eos(state_list)
-        return end_state.value_stack[-1], end_state.attribute_stack[-1]
-
     def filter_interactive_state(
         self, state: InteractiveParserState[StateT]
     ) -> InteractiveParserState[StateT]:
@@ -177,8 +168,10 @@ class InteractiveParser(Generic[StateT]):
         self.lexer.keep_active_states(lexer_state)
         current_scan = lexer_state.current_scan
 
+        dict_keys = set(lexer_state.dict_states) & set(lookahead_shifts) & set(lookahead_PDA_state)
+
         keys = []
-        for name, _ in lexer_state.dict_states.items():
+        for name in dict_keys:
             ctx_fsm = state.lookahead_ctx_fsm[name]
             if ctx_fsm is not None:
                 if ctx_fsm.is_prefix(current_scan):
@@ -186,13 +179,14 @@ class InteractiveParser(Generic[StateT]):
             else:
                 keys.append(name)
 
-        keys = set(keys) & set(lookahead_PDA_state)
-        is_end = set(["$END"]) if "$END" in lookahead_PDA_state.keys() else set()
-        active_lookahead_states = _subdict(lookahead_PDA_state, keys | is_end)
+        is_end = ["$END"] if "$END" in lookahead_PDA_state.keys() else []
+        active_lookahead_states = _subdict(lookahead_PDA_state, keys + is_end)
         lexer_state.dict_states = _subdict(lexer_state.dict_states, keys)
         lookahead_shifts = _subdict(lookahead_shifts, keys)
+        _lookahead_ctx_fsm = _subdict(state._lookahead_ctx_fsm, lookahead_shifts.keys())
+
         return InteractiveParserState(
-            active_lookahead_states, lexer_state, lookahead_shifts
+            active_lookahead_states, lexer_state, lookahead_shifts, _lookahead_ctx_fsm
         )
 
     def advance_interactive_state(
@@ -244,24 +238,24 @@ class InteractiveParser(Generic[StateT]):
         PDA_state = None
 
         for token in self.lexer.postlexer.process(token_iterator()):
-            if PDA_state is not None:
-                lookahead_PDA_state, lookahead_shifts = self.PDA.get_lookahead_states(
-                    copy(PDA_state)
-                )
-                lookahead_state = InteractiveParserState(
-                    lookahead_PDA_state, copy(lexer_state), lookahead_shifts
-                )
-            else:
-                lookahead_state = copy(
-                    InteractiveParserState(
-                        lookahead_PDA_state, lexer_state, state.lookahead_shifts
-                    )
-                )
-
+            self.lexer.keep_active_states(lexer_state)
             if len(lexer_state.dict_states) > 0:
-                active_interactive_states.append(
-                    self.filter_interactive_state(lookahead_state)
-                )
+                if PDA_state is not None:
+                    lookahead_PDA_state, lookahead_shifts = self.PDA.get_lookahead_states(
+                        copy(PDA_state)
+                    )
+                    lookahead_state = InteractiveParserState(
+                        lookahead_PDA_state, copy(lexer_state), lookahead_shifts
+                    )
+                else:
+                    lookahead_state = copy(
+                        InteractiveParserState(
+                            lookahead_PDA_state, lexer_state, state.lookahead_shifts
+                        )
+                    )
+                lookahead_state = self.filter_interactive_state(lookahead_state)
+                if len(lookahead_state.lexer_state.dict_states) > 0:
+                    active_interactive_states.append(lookahead_state)
 
             lexer_state.line_ctr.feed(
                 token.value, test_newline=(token.type in self.lexer.newline_types)
@@ -302,6 +296,8 @@ class InteractiveParser(Generic[StateT]):
                 )
             )
 
-        active_interactive_states.append(self.filter_interactive_state(lookahead_state))
+        lookahead_state = self.filter_interactive_state(lookahead_state)
+        if len(lookahead_state.lexer_state.dict_states) > 0:
+            active_interactive_states.append(lookahead_state)
 
         return active_interactive_states
