@@ -2,7 +2,6 @@
 
 from abc import abstractmethod, ABC
 import re
-from contextlib import suppress
 from typing import (
     TypeVar,
     Type,
@@ -56,7 +55,7 @@ class Pattern(Serialize, ABC):
 
     def __eq__(self, other):
         return (
-            type(self) == type(other)
+            type(self) is type(other)
             and self.value == other.value
             and self.flags == other.flags
         )
@@ -420,6 +419,23 @@ def _check_regex_collisions(
 
 
 class FSM(InteregularFSM):
+    """Finite State Machine implementation extending InteregularFSM.
+
+    A class that implements a Finite State Machine (FSM) based on the InteregularFSM class,
+    with additional functionality for regex pattern matching and state transitions.
+
+    Parameters
+    ----------
+    *args
+        Positional arguments passed to InteregularFSM
+    **kwargs
+        Keyword arguments passed to InteregularFSM
+
+    See Also
+    --------
+    InteregularFSM : Base class for FSM implementation
+    """
+
     def __init__(self, *args, **kwargs):
         super().__init__(*args, *kwargs)
 
@@ -429,15 +445,45 @@ class FSM(InteregularFSM):
 
     @classmethod
     def from_regex(cls, regex_str: str):
+        """
+        Create a lexer from a regular expression string.
+        Parameters
+        ----------
+        regex_str : str
+            The regular expression pattern to parse into a lexer
+        Returns
+        -------
+        FSM
+            A new FSM instance constructed from the regex pattern
+        Notes
+        -----
+        Uses the interegular library to parse the regex pattern into a finite state machine
+        which is then reduced for optimization.
+        """
+
         return cls.from_interegular(
             interegular.parse_pattern(regex_str).to_fsm().reduce()
         )
 
     def get_next_state(self, state: FSMState, symbol: Any) -> Optional[FSMState]:
+        """
+        Get the next state in the finite state machine given current state and symbol.
+        Parameters
+        ----------
+        state : FSMState
+            Current state in the finite state machine
+        symbol : Any
+            Symbol to process for state transition
+        Returns
+        -------
+        Optional[FSMState]
+            Next state if transition exists, None otherwise
+        """
+
         from interegular.fsm import anything_else
 
         if symbol not in self.alphabet:
-            if anything_else in self.alphabet and not symbol in self.alphabet:
+            if anything_else in self.alphabet and symbol not in self.alphabet:
                 symbol = anything_else
             else:
                 return None
@@ -451,12 +497,45 @@ class FSM(InteregularFSM):
             return None
 
     def is_final_state(self, state: FSMState) -> bool:
+        """Check if state is a final state.
+        Parameters
+        ----------
+        state : FSMState
+            The state to check.
+        Returns
+        -------
+        bool
+        """
+
         return state in self.finals
 
     def is_active_state(self, state: FSMState) -> bool:
+        """Check if a FSM state is active.
+        Parameters
+        ----------
+        state : FSMState
+            The state to check
+        Returns
+        -------
+        bool
+            True if state is in the map and has active transitions,
+            False otherwise
+        """
+
         return (state in self.map) and (len(self.map[state]) > 0)
 
     def is_prefix(self, text: str) -> bool:
+        """Check if the given text can be a prefix of a string accepted by the automaton.
+        Parameters
+        ----------
+        text : str
+            The text to check.
+        Returns
+        -------
+        bool
+            True if text can be a prefix of an accepted string, False otherwise.
+        """
+
         state = self.initial
         for symbol in text:
             state = self.get_next_state(state, symbol)
@@ -469,7 +548,7 @@ class FSM(InteregularFSM):
 class PostLex(ABC):
     @abstractmethod
     def process(self, stream: Iterator[Token]) -> Iterator[Token]:
-        raise NotImplemented
+        raise NotImplementedError
 
     always_accept: Iterable[str] = ()
 
@@ -497,6 +576,10 @@ class FSMLexerState:
             copy(self.dict_states),
             deepcopy(self.line_ctr),
         )
+
+    @property
+    def current_scan(self):
+        return self.text[self.pos : self.scan_pos]
 
 
 class FSMScanner:
@@ -624,7 +707,7 @@ class FSMLexer:
         )
 
     def initial_dict_states(
-        self, fsm_names: Optional[set[str]] = None
+        self, fsm_names: Optional[Collection[str]] = None
     ) -> Dict[str, Tuple[int, FSMState]]:
         if fsm_names is None:
             dict_states = {
@@ -642,7 +725,7 @@ class FSMLexer:
     def initial_lexer_state(
         self,
         text: str,
-        fsm_names: Optional[set[str]] = None,
+        fsm_names: Optional[Collection[str]] = None,
         line_ctr: Optional[LineCounter] = None,
     ) -> FSMLexerState:
         initial_dict_states = self.initial_dict_states(fsm_names)
@@ -689,8 +772,8 @@ class FSMLexer:
 
     def keep_active_states(self, lexer_state: FSMLexerState):
         active_states = {
-            name: (l, state)
-            for name, (l, state) in lexer_state.dict_states.items()
+            name: (match_length, state)
+            for name, (match_length, state) in lexer_state.dict_states.items()
             if state is not None and self.fsm_dict[name].is_active_state(state)
         }
         lexer_state.dict_states = active_states

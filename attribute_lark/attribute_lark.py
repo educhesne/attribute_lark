@@ -1,7 +1,5 @@
-from abc import ABC, abstractmethod
 import os
 import pickle
-import re
 from typing import (
     TypeVar,
     Type,
@@ -13,7 +11,6 @@ from typing import (
     Optional,
     Sequence,
     Tuple,
-    Iterable,
     Any,
     TYPE_CHECKING,
     Collection,
@@ -25,11 +22,11 @@ if TYPE_CHECKING:
     from .tree import ParseTree
     from .visitors import Transformer
 
-from .parsers.pushdown_automata import PDAState, ParseConf, PushDownAutomata
+from .parsers.pushdown_automata import ParseConf, PushDownAutomata
 from .parsers.lalr_analysis import LALR_Analyzer
 
-from .exceptions import ConfigurationError, assert_config, UnexpectedInput
-from .utils import Serialize, SerializeMemoizer, FS, logger, TextOrSlice
+from .exceptions import ConfigurationError, assert_config
+from .utils import Serialize, FS, logger, TextOrSlice
 from .load_grammar import (
     load_grammar,
     FromPackageLoader,
@@ -55,7 +52,6 @@ class LarkOptions(Serialize):
     propagate_positions: Union[bool, Callable]
     maybe_placeholders: bool
     cache: Union[bool, str]
-    # regex: bool
     g_regex_flags: int
     keep_all_tokens: bool
     tree_class: Optional[Callable[[str, List], Any]]
@@ -371,74 +367,6 @@ class AttributeLark(Serialize):
         pickle.dump({"data": data, "memo": m}, f, protocol=pickle.HIGHEST_PROTOCOL)
 
     @classmethod
-    def load(cls: Type[_T], f) -> _T:
-        """Loads an instance from the given file object
-
-        Useful for caching and multiprocessing.
-        """
-        inst = cls.__new__(cls)
-        return inst._load(f)
-
-    def _deserialize_lexer_conf(
-        self,
-        data: Dict[str, Any],
-        memo: Dict[int, Union[TerminalDef, Rule]],
-        options: LarkOptions,
-    ) -> LexerConf:
-        lexer_conf = LexerConf.deserialize(data["lexer_conf"], memo)
-        lexer_conf.callbacks = options.lexer_callbacks or {}
-        lexer_conf.re_module = regex if options.regex else re
-        lexer_conf.use_bytes = options.use_bytes
-        lexer_conf.g_regex_flags = options.g_regex_flags
-        lexer_conf.skip_validation = True
-        lexer_conf.postlex = options.postlex
-        return lexer_conf
-
-    def _load(self: _T, f: Any, **kwargs) -> _T:
-        if isinstance(f, dict):
-            d = f
-        else:
-            d = pickle.load(f)
-        memo_json = d["memo"]
-        data = d["data"]
-
-        assert memo_json
-        memo = SerializeMemoizer.deserialize(
-            memo_json, {"Rule": Rule, "TerminalDef": TerminalDef}, {}
-        )
-        options = dict(data["options"])
-        if (set(kwargs) - _LOAD_ALLOWED_OPTIONS) & set(LarkOptions._defaults):
-            raise ConfigurationError(
-                "Some options are not allowed when loading a Parser: {}".format(
-                    set(kwargs) - _LOAD_ALLOWED_OPTIONS
-                )
-            )
-        options.update(kwargs)
-        self.options = LarkOptions.deserialize(options, memo)
-        self.rules = [Rule.deserialize(r, memo) for r in data["rules"]]
-        self.source_path = "<deserialized>"
-        _validate_frontend_args(self.options.lexer)
-        self.lexer_conf = self._deserialize_lexer_conf(
-            data["parser"], memo, self.options
-        )
-        self.terminals = self.lexer_conf.terminals
-        self._prepare_callbacks()
-        self._terminals_dict = {t.name: t for t in self.terminals}
-        self.parser = _deserialize_parsing_frontend(
-            data["parser"],
-            memo,
-            self.lexer_conf,
-            self._callbacks,
-            self.options,  # Not all, but multiple attributes are used
-        )
-        return self
-
-    @classmethod
-    def _load_from_dict(cls, data, memo, **kwargs):
-        inst = cls.__new__(cls)
-        return inst._load({"data": data, "memo": memo}, **kwargs)
-
-    @classmethod
     def open(
         cls: Type[_T], grammar_filename: str, rel_to: Optional[str] = None, **options
     ) -> _T:
@@ -522,7 +450,7 @@ class AttributeLark(Serialize):
         self,
         text: str,
         start: Optional[str] = None,
-    ) -> Tuple[ParseTree, Any]:
+    ) -> Tuple["ParseTree", Any]:
         """Parse the given text, according to the options provided.
 
         Parameters:

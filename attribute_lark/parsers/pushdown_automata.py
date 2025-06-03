@@ -1,3 +1,10 @@
+"""
+Implements a pushdown automata for parsing with attribute evaluation.
+
+This module provides classes and functions for implementing a LALR parser with attribute
+evaluation capabilities.
+"""
+
 from copy import copy, deepcopy
 from typing import Dict, Any, Generic, List, Optional, Tuple, Union
 from dataclasses import dataclass, field
@@ -17,6 +24,37 @@ from attribute_lark.exceptions import UnexpectedToken
 
 
 class ParseConf(Generic[StateT]):
+    """A configuration class for parsers utilizing pushdown automata.
+
+    Parameters
+    ----------
+    parse_table : ParseTableBase
+        Table containing parsing rules and transitions
+    callbacks : ParserCallbacks
+        Callback functions for parser events
+    start : List[str]
+        List of starting symbols/tokens
+    python_header : Optional[AstModule]
+        Optional Python AST module header
+
+    Attributes
+    ----------
+    parse_table : ParseTableBase
+        The parse table containing grammar rules
+    callbacks : ParserCallbacks
+        Parser event callbacks
+    start : List[str]
+        Starting symbols/tokens
+    start_states : Dict[str, StateT]
+        Mapping of start symbols to starting states
+    end_states : Dict[str, StateT]
+        Mapping of start symbols to accepting states
+    states : Dict[StateT, Dict[str, tuple]]
+        State transition mapping
+    python_header : Optional[AstModule]
+        Python AST module header if present
+    """
+
     __slots__ = (
         "parse_table",
         "callbacks",
@@ -62,6 +100,29 @@ class GlobalVariables:
 
 @dataclass
 class PDAState(Generic[StateT]):
+    """Push-down automata state representation.
+
+    A class representing the state of a push-down automata (PDA), maintaining stacks for
+    states, values and attributes.
+
+    Parameters
+    ----------
+    initial_state : StateT
+        Starting state of the automata
+    final_state : StateT
+        Accepting/final state of the automata
+    state_stack : List[StateT]
+        Stack of states tracking the PDA's state history
+    value_stack : List[Any]
+        Stack storing values during PDA execution
+    attribute_stack : List[Any]
+        Stack storing attributes during PDA execution
+    python_header : AstModule, optional
+        Python AST module header information
+    global_vars : GlobalVariables
+        Container for global variable state
+    """
+
     initial_state: StateT
     final_state: StateT
     state_stack: List[StateT] = field(default_factory=list)
@@ -71,11 +132,40 @@ class PDAState(Generic[StateT]):
     global_vars: GlobalVariables = field(default_factory=GlobalVariables)
 
     def push(self, state_id: StateT, value: Any, attribute: Any):
+        """Push state, value and attribute onto their respective stacks.
+
+        Parameters
+        ----------
+        state_id : StateT
+            State identifier to push onto state stack
+        value : Any
+            Value to push onto value stack
+        attribute : Any
+            Attribute to push onto attribute stack
+        """
+
         self.state_stack.append(state_id)
         self.value_stack.append(value)
         self.attribute_stack.append(attribute)
 
     def pop(self, n: int = 1) -> Tuple[List[StateT], List[Any], List[Any]]:
+        """
+        Pop n items from each stack (states, values, attributes).
+
+        Parameters
+        ----------
+        n : int, default=1
+            Number of items to pop from each stack
+
+        Returns
+        -------
+        tuple
+            Contains three lists:
+            - states: List[StateT] - The popped states
+            - values: List[Any] - The popped values
+            - attributes: List[Any] - The popped attributes
+        """
+
         states = self.state_stack[-n:]
         del self.state_stack[-n:]
 
@@ -103,12 +193,32 @@ class PDAState(Generic[StateT]):
         )
 
 
-def eval_attribute(ast: Optional[AstExpression], pda_state: PDAState[StateT]) -> Any:
-    # evaluates the ast in a given context; as much as possible prevents side effects by allowing the reference to
-    # only two external variables: GLOBAL, an instance of GlobalVariables, and stack, the current stack of attributes
-    stack = pda_state.attribute_stack
-    GLOBAL = pda_state.global_vars
-    header = pda_state.python_header
+def eval_attribute(ast: Optional[AstExpression], PDA_state: PDAState[StateT]) -> Any:
+    """
+    Evaluates an AST expression in a controlled environment with access to specific variables.
+
+    Parameters
+    ----------
+    ast : Optional[AstExpression]
+        The abstract syntax tree to evaluate. If None, returns None.
+    PDA_state : PDAState[StateT]
+        State object containing attribute stack, global variables, and Python header.
+
+    Returns
+    -------
+    Any
+        Result of the AST evaluation, or None if ast is None.
+
+    Notes
+    -----
+    The function executes the AST with access to only three external variables:
+    - PDA_state.python_header: instance of AST Module
+    - PDA_state.global_vars: instance of GlobalVariables
+    - PDA_state.attribute_stack: current attribute stack
+    """
+    stack = PDA_state.attribute_stack
+    GLOBAL = PDA_state.global_vars
+    header = PDA_state.python_header
 
     globals_dict = dict()
     locals_dict = dict()
@@ -148,6 +258,36 @@ Action = Union[Shift, Reduce]
 
 
 class PushDownAutomata(Generic[StateT]):
+    """Implementation of a Push Down Automata for parsing context-sensitive languages.
+
+    A PDA is a state machine with a stack that can recognize context-free languages.
+    This implementation adds support for attribute evaluation during parsing.
+
+    Parameters
+    ----------
+    parse_conf : ParseConf[StateT]
+        Configuration object containing parsing tables and callbacks
+    debug : bool, optional
+        Enable debug output, by default False
+    ctx_term : bool, optional
+        Enable context-sensitive terminal matching, by default True
+
+    Attributes
+    ----------
+    parse_conf : ParseConf[StateT]
+        Parsing configuration
+    callbacks : ParserCallbacks
+        Callback functions for semantic actions
+    transitions : Dict[StateT, Dict[str, tuple]]
+        State transition table
+    start_states : Dict[str, StateT]
+        Map of start symbols to their initial states
+    end_states : Dict[str, StateT]
+        Map of start symbols to their final states
+    python_header : Optional[AstModule]
+        Python code to be included in attribute evaluation
+    """
+
     parse_conf: ParseConf[StateT]
     debug: bool
     ctx_term: bool
@@ -262,21 +402,32 @@ class PushDownAutomata(Generic[StateT]):
 
     def get_lookahead_states(
         self, state: PDAState[StateT]
-    ) -> List[Tuple[PDAState[StateT], Token]]:
-        next_tokens = set()
-        conf_no_callbacks = copy(self.parse_conf)
-        conf_no_callbacks.callbacks = {}
-        for t in states[state_stack[-1]]:
-            if t.type.isupper():  # is terminal?
-                new_automata = self.copy()
-                new_automata.parse_conf = conf_no_callbacks
+    ) -> Tuple[Dict[str, PDAState[StateT]], Dict[str, Shift]]:
+        next_token_types = self.get_lookahead_tokens(state)
+        lookahead_states = {}
+        lookahead_shifts = {}
+        for name in next_token_types:
+            if name == "$END":
+                continue
+            tok = Token(name, "", 0, 1, 1)
+            action = self.get_next_action(state, tok)
+            if isinstance(action, Shift):
+                lookahead_states[name] = state
+                lookahead_shifts[name] = action
+            else:
+                reduce_state = copy(state)
                 try:
-                    new_automata.get_next_state(state, t)
+                    while isinstance(action, Reduce):
+                        reduce_state = self.reduce_shift(reduce_state, action.rule)
+                        action = self.get_next_action(reduce_state, tok)
                 except UnexpectedToken:
-                    pass
-                else:
-                    next_tokens.add(t)
-        return next_tokens
+                    continue
+
+                lookahead_states[name] = reduce_state
+                lookahead_shifts[name] = action
+        if "$END" in next_token_types:
+            lookahead_states["$END"] = state
+        return lookahead_states, lookahead_shifts
 
     def copy(self) -> "PushDownAutomata[StateT]":
         raise NotImplementedError
