@@ -64,19 +64,15 @@ class InteractiveParserState(Generic[StateT]):
             def __init__(self, parent: InteractiveParserState):
                 self._parent = parent
 
-            def __getitem__(self, key):
+            def __getitem__(self, key) -> Optional[FSM]:
                 if key not in self._parent.lookahead_shifts:
                     raise KeyError(key)
 
-                if key not in self._parent._lookahead_ctx_fsm.get(key, None):
+                if key not in self._parent._lookahead_ctx_fsm:
                     shift = self._parent.lookahead_shifts[key]
-
-                    if shift is None or not shift.pattern:
-                        self._parent._lookahead_ctx_fsm[key] = None
-                    else:
-                        self._parent._lookahead_ctx_fsm[key] = FSM.from_regex(
-                            shift.pattern
-                        )
+                    self._parent._lookahead_ctx_fsm[key] = (
+                        FSM.from_regex(shift.pattern) if shift and shift.pattern else None
+                    )
 
                 return self._parent._lookahead_ctx_fsm[key]
 
@@ -84,7 +80,7 @@ class InteractiveParserState(Generic[StateT]):
                 return key in self._parent.lookahead_shifts
 
             def keys(self):
-                return self._parent.lookahead_shifts.keys()
+                return set(self._parent.lookahead_shifts.keys())
 
         return LazyDictCtxFSM(self)
 

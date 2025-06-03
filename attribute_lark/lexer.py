@@ -641,14 +641,14 @@ class FSMLexer:
         self.fsm_dict = fsm_dict
         self.scanner = FSMScanner(fsm_dict)
 
-        assert newline_types <= fsm_dict.keys()
-        self.newline_types = newline_types
+        self.newline_types = frozenset(newline_types) & fsm_dict.keys()
+        self.ignore_types = frozenset(ignore_types) & fsm_dict.keys()
+        self.always_accept = frozenset(always_accept) & fsm_dict.keys()
 
-        assert ignore_types <= fsm_dict.keys()
-        self.ignore_types = ignore_types
-
-        assert always_accept <= fsm_dict.keys()
-        self.always_accept = always_accept
+        # Cache initial states
+        self._cached_initial_states = {
+            name: (0, fsm.initial) for name, fsm in fsm_dict.items()
+        }
 
         self.postlexer = postlexer
 
@@ -709,18 +709,14 @@ class FSMLexer:
     def initial_dict_states(
         self, fsm_names: Optional[Collection[str]] = None
     ) -> Dict[str, Tuple[int, FSMState]]:
+        # keep the key order of self.fsm_dict for priorities
         if fsm_names is None:
-            dict_states = {
-                name: (0, self.fsm_dict[name].initial) for name in self.fsm_dict.keys()
-            }
-        else:
-            # keep the key order of self.fsm_dict for priorities
-            dict_states = {
-                name: (0, self.fsm_dict[name].initial)
-                for name in self.fsm_dict.keys()
-                if name in fsm_names
-            }
-        return dict_states
+            return self._cached_initial_states.copy()
+        return {
+            name: self._cached_initial_states[name]
+            for name in self.fsm_dict
+            if name in fsm_names
+        }
 
     def initial_lexer_state(
         self,
