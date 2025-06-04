@@ -162,9 +162,11 @@ class AttributeLark(Serialize):
     terminals: Collection[TerminalDef]
     python_header: Optional[AstModule]
 
-    def __init__(self, grammar: Grammar, **options):
+    def __init__(self, grammar_str: str, grammar_name: str = "<?>", **options):
+        self.grammar = self._load_grammar(grammar_str, grammar_name, **options)
+        self.source_grammar = grammar_str
+
         self.options = AttributeLarkOptions(options)
-        self.grammar = grammar
 
         # Compile grammar and prepare terminals
         terminals_to_keep = (set(self.options.postlex.always_accept)
@@ -199,9 +201,8 @@ class AttributeLark(Serialize):
         self.parser = Parser(self.PDA, self.lexer)
         self.interactive_parser = InteractiveParser(self.PDA, self.lexer)
 
-    @classmethod
-    def from_string(cls, grammar_str: str, grammar_name: str = "<?>", **options) -> "AttributeLark":
-        """Create a parser instance from a grammar string."""
+    def _load_grammar(self, grammar_str: str, grammar_name: str = "<?>", **options) -> Grammar:
+        """Create a Grammar instance from a grammar string."""
         keep_all_tokens = options.get("keep_all_tokens", False)
         import_paths = options.get("import_paths", None)
         grammar, _ = load_grammar(
@@ -210,9 +211,7 @@ class AttributeLark(Serialize):
             import_paths,
             global_keep_all_tokens=keep_all_tokens,
         )
-        inst = cls(grammar, **options)
-        inst.source_grammar = grammar_str
-        return inst
+        return grammar
 
     @classmethod
     def open_from_package(cls, package: str, grammar_path: str, search_paths: 'Sequence[str]'=[""], **options):
@@ -230,7 +229,7 @@ class AttributeLark(Serialize):
         options.setdefault('source_path', full_path)
         options.setdefault('import_paths', [])
         options['import_paths'].append(package_loader)
-        return cls.from_string(text, **options)
+        return cls(text, **options)
 
     def _prepare_callbacks(self) -> ParserCallbacks:
         callbacks = ParseTreeBuilder(
