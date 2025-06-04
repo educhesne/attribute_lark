@@ -10,6 +10,7 @@ from typing import (
     TYPE_CHECKING,
     Collection,
     Literal,
+    Sequence,
 )
 from ast import Module as AstModule
 
@@ -25,6 +26,7 @@ from .load_grammar import (
     load_grammar,
     Grammar,
     PackageResource,
+    FromPackageLoader,
 )
 from .tree import Tree
 from .common import LexerConf, ParserConf, _LexerArgType, ParserCallbacks
@@ -211,6 +213,24 @@ class AttributeLark(Serialize):
         inst = cls(grammar, **options)
         inst.source_grammar = grammar_str
         return inst
+
+    @classmethod
+    def open_from_package(cls, package: str, grammar_path: str, search_paths: 'Sequence[str]'=[""], **options):
+        """Create an instance of Lark with the grammar loaded from within the package `package`.
+        This allows grammar loading from zipapps.
+
+        Imports in the grammar will use the `package` and `search_paths` provided, through `FromPackageLoader`
+
+        Example:
+
+            Lark.open_from_package(__name__, "example.lark", ("grammars",), parser=...)
+        """
+        package_loader = FromPackageLoader(package, search_paths)
+        full_path, text = package_loader(None, grammar_path)
+        options.setdefault('source_path', full_path)
+        options.setdefault('import_paths', [])
+        options['import_paths'].append(package_loader)
+        return cls.from_string(text, **options)
 
     def _prepare_callbacks(self) -> ParserCallbacks:
         callbacks = ParseTreeBuilder(
