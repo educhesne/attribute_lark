@@ -1,9 +1,8 @@
 import textwrap
-from unittest import TestCase, main
-
-from lark import AttributeLark as Lark
-from lark.indenter import PythonIndenter
-from lark.exceptions import UnexpectedCharacters, UnexpectedToken, ParseError
+import pytest
+from attribute_lark import AttributeLark
+from attribute_lark.indenter import PythonIndenter
+from attribute_lark.exceptions import UnexpectedCharacters, UnexpectedToken, ParseError
 
 valid_DEC_NUMBER = [
     "0",
@@ -228,90 +227,85 @@ invalid_match_statements = [
 ]
 
 
-class TestPythonParser(TestCase):
-    @classmethod
-    def setUpClass(cls):
-        cls.python_parser = Lark.open_from_package(
-            "lark",
-            "python.lark",
-            ("grammars",),
-            postlex=PythonIndenter(),
-            start=["number", "file_input"],
-        )
+@pytest.fixture(scope="module")
+def python_parser():
+    # Read the Python grammar file directly
+    grammar_path = "/home/etienne/projects/attribute_lark/attribute_lark/grammars/python.lark"
+    with open(grammar_path) as f:
+        grammar = f.read()
+    return AttributeLark.from_string(
+        grammar,
+        postlex=PythonIndenter(),
+        start=["number", "file_input"]
+    )
 
-    def _test_parsed_is_this_terminal(self, text, terminal, start):
-        tree = self.python_parser.parse(text, start=start)
-        self.assertEqual(len(tree.children), 1)
-        token = tree.children[0]
-        self.assertEqual(token.type, terminal)
-        self.assertEqual(token.value, text)
+def _test_parsed_is_this_terminal(python_parser, text, terminal, start):
+    tree, attr = python_parser.parse(text, start=start)
+    assert len(tree.children) == 1
+    token = tree.children[0]
+    assert token.type == terminal
+    assert token.value == text
 
-    def _test_parsed_is_file_containing_only_this_statement(self, text, statement):
-        tree = self.python_parser.parse(text, start="file_input")
-        self.assertEqual(len(tree.children), 1)
+def _test_parsed_is_file_containing_only_this_statement(python_parser, text, statement):
+    tree, attr = python_parser.parse(text, start="file_input")
+    assert len(tree.children) == 1
 
-        statement_token = tree.children[0].data
-        self.assertEqual(statement_token.type, "RULE")
-        self.assertEqual(statement_token.value, statement)
+    statement_data = tree.children[0].data
+    assert statement_data == statement
 
-    def test_DEC_NUMBER(self):
-        for case in valid_DEC_NUMBER:
-            self._test_parsed_is_this_terminal(case, "DEC_NUMBER", "number")
+@pytest.mark.parametrize("case", valid_DEC_NUMBER)
+def test_DEC_NUMBER(python_parser, case):
+    _test_parsed_is_this_terminal(python_parser, case, "DEC_NUMBER", "number")
 
-    def test_HEX_NUMBER(self):
-        for case in valid_HEX_NUMBER:
-            self._test_parsed_is_this_terminal(case, "HEX_NUMBER", "number")
+@pytest.mark.parametrize("case", valid_HEX_NUMBER)
+def test_HEX_NUMBER(python_parser, case):
+    _test_parsed_is_this_terminal(python_parser, case, "HEX_NUMBER", "number")
 
-    def test_OCT_NUMBER(self):
-        for case in valid_OCT_NUMBER:
-            self._test_parsed_is_this_terminal(case, "OCT_NUMBER", "number")
+@pytest.mark.parametrize("case", valid_OCT_NUMBER)
+def test_OCT_NUMBER(python_parser, case):
+    _test_parsed_is_this_terminal(python_parser, case, "OCT_NUMBER", "number")
 
-    def test_BIN_NUMBER(self):
-        for case in valid_BIN_NUMBER:
-            self._test_parsed_is_this_terminal(case, "BIN_NUMBER", "number")
+@pytest.mark.parametrize("case", valid_BIN_NUMBER)
+def test_BIN_NUMBER(python_parser, case):
+    _test_parsed_is_this_terminal(python_parser, case, "BIN_NUMBER", "number")
 
-    def test_FLOAT_NUMBER(self):
-        for case in valid_FLOAT_NUMBER:
-            self._test_parsed_is_this_terminal(case, "FLOAT_NUMBER", "number")
+@pytest.mark.parametrize("case", valid_FLOAT_NUMBER)
+def test_FLOAT_NUMBER(python_parser, case):
+    _test_parsed_is_this_terminal(python_parser, case, "FLOAT_NUMBER", "number")
 
-    def test_IMAG_NUMBER(self):
-        for case in valid_IMAG_NUMBER:
-            self._test_parsed_is_this_terminal(case, "IMAG_NUMBER", "number")
+@pytest.mark.parametrize("case", valid_IMAG_NUMBER)
+def test_IMAG_NUMBER(python_parser, case):
+    _test_parsed_is_this_terminal(python_parser, case, "IMAG_NUMBER", "number")
 
-    def test_valid_number(self):
-        # XXX: all valid test cases should run with the above tests for numbers
-        for case in valid_number:
-            self.python_parser.parse(case, start="number")  # no error
+@pytest.mark.parametrize("case", valid_number)
+def test_valid_number(python_parser, case):
+    # Should parse without error and return both tree and attribute
+    tree, attr = python_parser.parse(case, start="number")
+    assert tree is not None
 
-    def test_invalid_number(self):
-        for case in invalid_number:
-            with self.assertRaises((UnexpectedCharacters, UnexpectedToken)):
-                self.python_parser.parse(case, start="number")
+@pytest.mark.parametrize("case", invalid_number)
+def test_invalid_number(python_parser, case):
+    with pytest.raises((UnexpectedCharacters, UnexpectedToken)):
+        python_parser.parse(case, start="number")
 
-    def test_valid_match_statement(self):
-        for case in valid_match_statements:
-            self._test_parsed_is_file_containing_only_this_statement(case, "match_stmt")
+@pytest.mark.parametrize("case", valid_match_statements)
+def test_valid_match_statement(python_parser, case):
+    _test_parsed_is_file_containing_only_this_statement(python_parser, case, "match_stmt")
 
-    def test_invalid_match_statement(self):
-        for case in invalid_match_statements:
-            with self.assertRaises(ParseError):
-                self.python_parser.parse(case, start="file_input")
+@pytest.mark.parametrize("case", invalid_match_statements)
+def test_invalid_match_statement(python_parser, case):
+    with pytest.raises(ParseError):
+        python_parser.parse(case, start="file_input")
 
-    def test_assign_to_variable_named_match(self):
-        text = textwrap.dedent("""
-        match = re.match(pattern, string)
-        """)
+def test_assign_to_variable_named_match(python_parser):
+    text = textwrap.dedent("""
+    match = re.match(pattern, string)
+    """)
+    _test_parsed_is_file_containing_only_this_statement(python_parser, text, "assign_stmt")
 
-        self._test_parsed_is_file_containing_only_this_statement(text, "assign_stmt")
-
-    def test_assign_expr_with_variable_named_match(self):
-        text = textwrap.dedent("""
-        if match := re.match(pattern, string):
-            do_thing(match)
-        """)
-
-        self._test_parsed_is_file_containing_only_this_statement(text, "if_stmt")
-
-
-if __name__ == "__main__":
-    main()
+def test_assign_expr_with_variable_named_match(python_parser):
+    text = textwrap.dedent("""
+    if match := re.match(pattern, string):
+        do_thing(match)
+    """)
+    _test_parsed_is_file_containing_only_this_statement(python_parser, text, "if_stmt")

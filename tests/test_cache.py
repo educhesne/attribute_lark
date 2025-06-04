@@ -1,13 +1,12 @@
 from __future__ import absolute_import
 
-import logging
-from unittest import TestCase, main, skipIf
-
-from lark import AttributeLark as Lark, Tree, Transformer, UnexpectedInput
-from lark.lexer import Lexer, Token
-import lark.attribute_lark as lark_module
-
+import pytest
 from io import BytesIO
+
+from attribute_lark import AttributeLark, Tree, Transformer, UnexpectedInput
+from attribute_lark.lexer import Token
+from attribute_lark.common import Lexer
+from attribute_lark import utils as lark_module
 
 try:
     import regex
@@ -33,7 +32,6 @@ class MockFS:
     def open(self, name, mode="r", **kwargs):
         if name not in self.files:
             if "r" in mode:
-                # If we are reading from a file, it should already exist
                 raise FileNotFoundError(name)
             f = self.files[name] = MockFile()
         else:
@@ -69,136 +67,139 @@ def append_zero(t):
     return t.update(value=t.value + "0")
 
 
-class TestCache(TestCase):
-    g = '''start: "a"'''
-
-    def setUp(self):
-        self.fs = lark_module.FS
-        self.mock_fs = MockFS()
-        lark_module.FS = self.mock_fs
-
-    def tearDown(self):
-        self.mock_fs.files = {}
-        lark_module.FS = self.fs
-
-    def test_simple(self):
-        fn = "bla"
-
-        Lark(self.g, cache=fn)
-        assert fn in self.mock_fs.files
-        parser = Lark(self.g, cache=fn)
-        assert parser.parse("a") == Tree("start", [])
-
-    def test_automatic_naming(self):
-        assert len(self.mock_fs.files) == 0
-        Lark(self.g, cache=True)
-        assert len(self.mock_fs.files) == 1
-        parser = Lark(self.g, cache=True)
-        assert parser.parse("a") == Tree("start", [])
-
-        parser = Lark(self.g + ' "b"', cache=True)
-        assert len(self.mock_fs.files) == 2
-        assert parser.parse("ab") == Tree("start", [])
-
-        parser = Lark(self.g, cache=True)
-        assert parser.parse("a") == Tree("start", [])
-
-    def test_custom_lexer(self):
-        parser = Lark(self.g, lexer=CustomLexer, cache=True)
-        parser = Lark(self.g, lexer=CustomLexer, cache=True)
-        assert len(self.mock_fs.files) == 1
-        assert parser.parse("a") == Tree("start", [])
-
-    def test_options(self):
-        # Test options persistence
-        Lark(self.g, debug=True, cache=True)
-        parser = Lark(self.g, debug=True, cache=True)
-        assert parser.options.options["debug"]
-
-    def test_inline(self):
-        # Test inline transformer (tree-less) & lexer_callbacks
-        # Note: the Transformer should not be saved to the file,
-        #       and is made unpickable to check for that
-        g = r"""
-        start: add+
-        add: NUM "+" NUM
-        NUM: /\d+/
-        %ignore " "
-        """
-        text = "1+2 3+4"
-        expected = Tree("start", [30, 70])
-
-        parser = Lark(
-            g,
-            transformer=InlineTestT(),
-            cache=True,
-            lexer_callbacks={"NUM": append_zero},
-        )
-        res0 = parser.parse(text)
-        parser = Lark(
-            g,
-            transformer=InlineTestT(),
-            cache=True,
-            lexer_callbacks={"NUM": append_zero},
-        )
-        assert len(self.mock_fs.files) == 1
-        res1 = parser.parse(text)
-        res2 = InlineTestT().transform(
-            Lark(g, cache=True, lexer_callbacks={"NUM": append_zero}).parse(text)
-        )
-        assert res0 == res1 == res2 == expected
-
-    def test_imports(self):
-        g = """
-        %import .grammars.ab (startab, expr)
-        """
-        parser = Lark(g, start="startab", cache=True, source_path=__file__)
-        assert len(self.mock_fs.files) == 1
-        parser = Lark(g, start="startab", cache=True, source_path=__file__)
-        assert len(self.mock_fs.files) == 1
-        res = parser.parse("ab")
-        self.assertEqual(res, Tree("startab", [Tree("expr", ["a", "b"])]))
-
-    @skipIf(regex is None, "'regex' lib not installed")
-    def test_recursive_pattern(self):
-        g = """
-        start: recursive+
-        recursive: /\w{3}\d{3}(?R)?/
-        """
-
-        assert len(self.mock_fs.files) == 0
-        Lark(g, regex=True, cache=True)
-        assert len(self.mock_fs.files) == 1
-
-        with self.assertLogs("lark", level="ERROR") as cm:
-            Lark(g, regex=True, cache=True)
-            assert len(self.mock_fs.files) == 1
-            # need to add an error log, because 'self.assertNoLogs' was added in Python 3.10
-            logging.getLogger("lark").error("dummy message")
-        # should only have the dummy log
-        self.assertCountEqual(cm.output, ["ERROR:lark:dummy message"])
-
-    def test_error_message(self):
-        # Checks that error message generation works
-        # This is especially important since sometimes the `str` method fails with
-        # the mysterious "<unprintable UnexpectedCharacters object>" or similar
-        g = r"""
-        start: add+
-        add: /\d+/ "+" /\d+/
-        %ignore " "
-        """
-        texts = ("1+", "+1", "", "1 1+1")
-
-        parser1 = Lark(g, cache=True)
-        parser2 = Lark(g, cache=True)
-        assert len(self.mock_fs.files) == 1
-        for text in texts:
-            with self.assertRaises((UnexpectedInput)) as cm1:
-                parser1.parse(text)
-            with self.assertRaises((UnexpectedInput)) as cm2:
-                parser2.parse(text)
-            self.assertEqual(str(cm1.exception), str(cm2.exception))
+@pytest.fixture
+def mock_fs(monkeypatch):
+    fs = getattr(lark_module, 'mock_fs', None)
+    mock_fs = MockFS()
+    monkeypatch.setattr(lark_module, 'mock_fs', mock_fs)
+    yield mock_fs
+    mock_fs.files = {}
+    if fs is not None:
+        monkeypatch.setattr(lark_module, 'mock_fs', fs)
 
 
-if __name__ == "__main__":
-    main()
+TEST_GRAMMAR = '''start: "a" { stack[-1] = stack[-1] }'''
+
+
+def test_simple(mock_fs):
+    fn = "bla"
+
+    AttributeLark(TEST_GRAMMAR, cache=fn)
+    assert fn in mock_fs.files
+    parser = AttributeLark(TEST_GRAMMAR, cache=fn)
+    tree, attr = parser.parse("a")
+    assert tree == Tree("start", [])
+
+
+def test_automatic_naming(mock_fs):
+    assert len(mock_fs.files) == 0
+    AttributeLark(TEST_GRAMMAR, cache=True)
+    assert len(mock_fs.files) == 1
+    parser = AttributeLark(TEST_GRAMMAR, cache=True)
+    tree, attr = parser.parse("a")
+    assert tree == Tree("start", [])
+
+    parser = AttributeLark(TEST_GRAMMAR + ' "b" { stack.append(stack.pop(-2) + stack.pop()) }', cache=True)
+    assert len(mock_fs.files) == 2
+    tree, attr = parser.parse("ab")
+    assert tree == Tree("start", [])
+
+
+def test_custom_lexer(mock_fs):
+    parser = AttributeLark(TEST_GRAMMAR, lexer=CustomLexer, cache=True)
+    parser = AttributeLark(TEST_GRAMMAR, lexer=CustomLexer, cache=True)
+    assert len(mock_fs.files) == 1
+    tree, attr = parser.parse("a")
+    assert tree == Tree("start", [])
+
+
+def test_options(mock_fs):
+    # Test options persistence
+    AttributeLark(TEST_GRAMMAR, debug=True, cache=True)
+    parser = AttributeLark(TEST_GRAMMAR, debug=True, cache=True)
+    assert parser.options.debug is True
+
+
+def test_inline(mock_fs):
+    # Test inline transformer (tree-less) & lexer_callbacks
+    g = r"""
+    start: add+ { stack[-1] = list(stack[-1]) }
+    add: NUM "+" NUM { stack[-1] = int(stack[-3]) + int(stack[-1]) }
+    NUM: /\d+/
+    %ignore " "
+    """
+    text = "1+2 3+4"
+    expected = [3, 7]
+
+    parser = AttributeLark(
+        g,
+        transformer=InlineTestT(),
+        cache=True,
+        lexer_callbacks={"NUM": append_zero}
+    )
+    tree, attr = parser.parse(text)
+    res0 = attr
+
+    parser = AttributeLark(
+        g,
+        transformer=InlineTestT(),
+        cache=True,
+        lexer_callbacks={"NUM": append_zero}
+    )
+    assert len(mock_fs.files) == 1
+    tree, attr = parser.parse(text)
+    res1 = attr
+
+    tree, attr = AttributeLark(g, cache=True, lexer_callbacks={"NUM": append_zero}).parse(text)
+    res2 = InlineTestT().transform(tree)
+    assert res0 == res1 == expected
+    assert res2 == Tree("start", [30, 70])
+
+
+def test_imports(mock_fs):
+    g = """
+    %import .grammars.ab (startab, expr)
+    """
+    parser = AttributeLark(g, start="startab", cache=True, source_path=__file__)
+    assert len(mock_fs.files) == 1
+    parser = AttributeLark(g, start="startab", cache=True, source_path=__file__)
+    assert len(mock_fs.files) == 1
+    tree, _ = parser.parse("ab")
+    assert tree == Tree("startab", [Tree("expr", ["a", "b"])])
+
+
+@pytest.mark.skipif(regex is None, reason="'regex' lib not installed")
+def test_recursive_pattern(mock_fs):
+    g = """
+    start: recursive+ { stack[-1] = list(stack[-1]) }
+    recursive: /\\w{3}\\d{3}(?R)?/ { stack[-1] = stack[-1] }
+    """
+
+    assert len(mock_fs.files) == 0
+    AttributeLark(g, regex=True, cache=True)
+    assert len(mock_fs.files) == 1
+
+    with pytest.warns(None) as record:
+        AttributeLark(g, regex=True, cache=True)
+        assert len(mock_fs.files) == 1
+    assert not record  # No warnings should be recorded
+
+
+def test_error_message(mock_fs):
+    g = r"""
+    start: add+
+    add: /\d+/ "+" /\d+/
+    %ignore " "
+    """
+    texts = ("1+", "+1", "", "1 1+1")
+
+    parser1 = AttributeLark(g, cache=True)
+    parser2 = AttributeLark(g, cache=True)
+    assert len(mock_fs.files) == 1
+
+    for text in texts:
+        with pytest.raises(UnexpectedInput) as cm1:
+            parser1.parse(text)
+        with pytest.raises(UnexpectedInput) as cm2:
+            parser2.parse(text)
+        assert str(cm1.value) == str(cm2.value)

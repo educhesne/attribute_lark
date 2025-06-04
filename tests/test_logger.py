@@ -1,9 +1,9 @@
 import logging
 from contextlib import contextmanager
-from attribute_lark import AttributeLark, logger
-from unittest import TestCase, main, skipIf
-
+import pytest
 from io import StringIO
+
+from attribute_lark import AttributeLark, logger
 
 try:
     import interegular
@@ -22,83 +22,74 @@ def capture_log():
     logger.addHandler(orig_handler)
 
 
-class Testlogger(TestCase):
-    def test_debug(self):
-        logger.setLevel(logging.DEBUG)
-        collision_grammar = """
-        start: as as
-        as: a*
-        a: "a"
-        """
-        with capture_log() as log:
-            AttributeLark.from_string(collision_grammar, debug=True)
+def test_debug():
+    logger.setLevel(logging.DEBUG)
+    collision_grammar = """
+    start: as as { stack[-1] = stack[-1] }
+    as: a* { stack[-1] = list(stack[-1]) }
+    a: "a" { stack[-1] = stack[-1] }
+    """
+    with capture_log() as log:
+        AttributeLark.from_string(collision_grammar, debug=True)
 
-        log = log.getvalue()
-        # since there are conflicts about A
-        # symbol A should appear in the log message for hint
-        self.assertIn("A", log)
+    log = log.getvalue()
+    # since there are conflicts about A
+    # symbol A should appear in the log message for hint
+    assert "A" in log
 
-    def test_non_debug(self):
-        logger.setLevel(logging.WARNING)
-        collision_grammar = """
-        start: as as
-        as: a*
-        a: "a"
-        """
-        with capture_log() as log:
-            AttributeLark.from_string(collision_grammar, debug=False)
-        log = log.getvalue()
-        # no log message
-        self.assertEqual(log, "")
+def test_non_debug():
+    logger.setLevel(logging.WARNING)
+    collision_grammar = """
+    start: as as { stack[-1] = stack[-1] }
+    as: a* { stack[-1] = list(stack[-1]) }
+    a: "a" { stack[-1] = stack[-1] }
+    """
+    with capture_log() as log:
+        AttributeLark.from_string(collision_grammar, debug=False)
+    log = log.getvalue()
+    # no log message
+    assert log == ""
 
-    def test_loglevel_higher(self):
-        logger.setLevel(logging.ERROR)
-        collision_grammar = """
-        start: as as
-        as: a*
-        a: "a"
-        """
-        with capture_log() as log:
-            AttributeLark.from_string(collision_grammar, debug=True)
-        log = log.getvalue()
-        # no log message
-        self.assertEqual(len(log), 0)
+def test_loglevel_higher():
+    logger.setLevel(logging.ERROR)
+    collision_grammar = """
+    start: as as { stack[-1] = stack[-1] }
+    as: a* { stack[-1] = list(stack[-1]) }
+    a: "a" { stack[-1] = stack[-1] }
+    """
+    with capture_log() as log:
+        AttributeLark.from_string(collision_grammar, debug=True)
+    log = log.getvalue()
+    # no log message
+    assert len(log) == 0
 
-    @skipIf(
-        interegular is None, "interegular is not installed, can't test regex collisions"
-    )
-    def test_regex_collision(self):
-        logger.setLevel(logging.WARNING)
-        collision_grammar = """
-        start: A | B
-        A: /a+/
-        B: /(a|b)+/
-        """
-        with capture_log() as log:
-            AttributeLark.from_string(collision_grammar)
+@pytest.mark.skipif(interegular is None, reason="interegular is not installed, can't test regex collisions")
+def test_regex_collision():
+    logger.setLevel(logging.WARNING)
+    collision_grammar = """
+    start: A | B { stack[-1] = stack[-1] }
+    A: /a+/ { stack[-1] = stack[-1] }
+    B: /(a|b)+/ { stack[-1] = stack[-1] }
+    """
+    with capture_log() as log:
+        AttributeLark.from_string(collision_grammar)
 
-        log = log.getvalue()
-        # since there are conflicts between A and B
-        # symbols A and B should appear in the log message
-        self.assertIn("A", log)
-        self.assertIn("B", log)
+    log = log.getvalue()
+    # since there are conflicts between A and B
+    # symbols A and B should appear in the log message
+    assert "A" in log
+    assert "B" in log
 
-    @skipIf(
-        interegular is None, "interegular is not installed, can't test regex collisions"
-    )
-    def test_no_regex_collision(self):
-        logger.setLevel(logging.WARNING)
-        collision_grammar = """
-        start: A " " B
-        A: /a+/
-        B: /(a|b)+/
-        """
-        with capture_log() as log:
-            AttributeLark.from_string(collision_grammar)
+@pytest.mark.skipif(interegular is None, reason="interegular is not installed, can't test regex collisions")
+def test_no_regex_collision():
+    logger.setLevel(logging.WARNING)
+    collision_grammar = """
+    start: A " " B { stack[-1] = stack[-1] }
+    A: /a+/ { stack[-1] = stack[-1] }
+    B: /(a|b)+/ { stack[-1] = stack[-1] }
+    """
+    with capture_log() as log:
+        AttributeLark.from_string(collision_grammar)
 
-        log = log.getvalue()
-        self.assertEqual(log, "")
-
-
-if __name__ == "__main__":
-    main()
+    log = log.getvalue()
+    assert log == ""
