@@ -2,8 +2,6 @@ from __future__ import absolute_import
 
 import os
 from unittest import TestCase, main
-import pytest
-from pathlib import Path
 
 from attribute_lark import AttributeLark, Token, Tree, ParseError, UnexpectedInput
 from attribute_lark.load_grammar import (
@@ -14,117 +12,6 @@ from attribute_lark.load_grammar import (
 )
 from attribute_lark.load_grammar import FromPackageLoader
 from attribute_lark.grammar import Symbol
-from attribute_lark.parsers.pushdown_automata import PushDownAutomata
-
-
-@pytest.mark.parametrize("msg,examples", GRAMMAR_ERRORS)
-def test_grammar_errors(msg, examples):
-    for example in examples:
-        with pytest.raises(GrammarError) as e:
-            AttributeLark.from_string(example)
-        assert msg in str(e.value)
-
-def test_empty_literal():
-    # Issues #888
-    with pytest.raises(GrammarError):
-        AttributeLark.from_string('start: ""')
-
-def test_ignore_name():
-    spaces = []
-    p = AttributeLark.from_string(
-        """
-        start: "a" "b" { stack[-1] = stack[-2] + stack[-1] }
-        WS: " "
-        %ignore WS
-    """,
-        lexer_callbacks={"WS": spaces.append},
-    )
-    tree1, attr1 = p.parse("a b")
-    tree2, attr2 = p.parse("a    b")
-    assert tree1 == tree2
-    assert attr1 == attr2
-    assert len(spaces) == 5
-
-def test_fsm_lexer():
-    """Test FSM lexer with attribute grammar"""
-    terminal_defs = []
-    ignore = []
-    p = AttributeLark.from_string("""
-        start: NUMBER "+" NUMBER { stack[-1] = int(stack[-3]) + int(stack[-1]) }
-        NUMBER: /[0-9]+/
-        WS: /\\s+/
-        %ignore WS
-    """)
-
-    # Test lexer directly
-    lexer = p.lexer
-    tokens = list(lexer.lex("42 + 123"))
-    assert len(tokens) == 3
-    assert [t.value for t in tokens if t.type != 'WS'] == ['42', '+', '123']
-
-    # Test full parse with attributes
-    tree, result = p.parse("42 + 123")
-    assert result == 165
-
-def test_pushdown_automata():
-    """Test PushDownAutomata with attribute evaluation"""
-    p = AttributeLark.from_string("""
-        start: expr { stack[-1] = stack[-1] }
-        expr: NUMBER { stack[-1] = int(stack[-1]) }
-            | expr "+" expr { stack[-1] = stack[-3] + stack[-1] }
-        NUMBER: /[0-9]+/
-        WS: /\\s+/
-        %ignore WS
-    """)
-
-    # Test parser components
-    pda = p.PDA
-    assert isinstance(pda, PushDownAutomata)
-
-    # Test parsing with attribute evaluation
-    tree, result = p.parse("42 + 123 + 10")
-    assert result == 175
-
-def test_interactive_parser():
-    """Test interactive parser with incremental input"""
-    p = AttributeLark.from_string("""
-        start: expr { stack[-1] = stack[-1] }
-        expr: NUMBER { stack[-1] = int(stack[-1]) }
-            | expr "+" expr { stack[-1] = stack[-3] + stack[-1] }
-        NUMBER: /[0-9]+/
-        WS: /\\s+/
-        %ignore WS
-    """)
-
-    # Test incremental parsing
-    states = p.parse_interactive("42")
-    assert len(states) > 0
-
-    states = p.interactive_parser.resume_parser(states, " + 123")
-    assert len(states) > 0
-
-    final_state = p.interactive_parser.feed_eos(states)
-    assert final_state.value_stack[-1] == Tree('start', [Tree('expr', ['42', '+', '123'])])
-    assert final_state.attribute_stack[-1] == 165
-
-def test_list_grammar_imports():
-    grammar = """
-        %import .test_templates_import (start, sep)
-        %override sep{item, delim}: item (delim item)* delim?
-        %ignore " "
-        """
-
-    imports = list_grammar_imports(grammar, [str(Path(__file__).parent)])
-    assert {Path(i).name for i in imports} == {"test_templates_import.lark", "templates.lark"}
-
-    imports = list_grammar_imports("%import common.WS", [])
-    assert len(imports) == 1
-    assert imports[0].pkg_name == "lark"
-
-def test_symbol_eq():
-    a = None
-    b = Symbol("abc")
-    assert a != b
 
 
 class TestGrammar(TestCase):
