@@ -120,7 +120,7 @@ TERMINALS = {
     "_DOT": r"\.",
     "_DOTDOT": r"\.\.",
     "TILDE": "~",
-    "RULE_MODIFIERS": "(!|![?]?|[?]!?)(?=[_a-z])",
+    "RULE_MODIFIERS": "(!|![?]?|[?]!?)",  #   "(!|![?]?|[?]!?)(?=[_a-z])",
     "RULE": "_?[a-z][_a-z0-9]*",
     "TERMINAL": "_?[A-Z][_A-Z0-9]*",
     "STRING": r'"(\\"|\\\\|[^"\n])*?"i?',
@@ -997,7 +997,6 @@ class Grammar:
                 )
                 compiled_rules.append(rule)
                 compiled_rules.extend(marker_rules)
-
         # Remove duplicates of empty rules, throw error for non-empty duplicates
         if len(set(compiled_rules)) != len(compiled_rules):
             duplicates = classify(compiled_rules, lambda x: x)
@@ -1614,7 +1613,6 @@ class GrammarBuilder:
         mangle: Optional[Callable[[str], str]] = None,
     ) -> None:
         tree = _parse_grammar(grammar_text, grammar_name)
-
         imports: Dict[Tuple[str, ...], Tuple[Optional[str], Dict[str, str]]] = {}
 
         for stmt in tree.children:
@@ -1662,7 +1660,6 @@ class GrammarBuilder:
                 self._python_header = stmt.children[0].value[2:-2].strip()
             else:
                 assert False, stmt
-
         term_defs = {name: d.tree for name, d in self._definitions.items() if d.is_term}
         resolve_term_references(term_defs)
 

@@ -236,7 +236,7 @@ class AttributeLark(Serialize):
             self.rules,
             Tree,
             self.options.propagate_positions,
-            False,
+            True,                  # maybe_placeholders
         ).create_callback(None)
         return callbacks
 
