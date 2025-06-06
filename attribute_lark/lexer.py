@@ -560,6 +560,118 @@ class IdPostLex(PostLex):
     always_accept: Iterable[str] = ()
 
 
+class Lexer(ABC):
+    postlexer: PostLex
+
+    @abstractmethod
+    def lex(self, text: str) -> Iterator[Token]: ...
+
+
+class RELexer(Lexer):
+    def __init__(
+        self,
+        re_dict: Dict[str, re.Pattern],
+        newline_types: set[str] = set(),
+        ignore_types: set[str] = set(),
+        always_accept: set[str] = set(),
+        postlexer: PostLex = IdPostLex(),
+    ):
+        self.re_dict = re_dict
+        self.newline_types = frozenset(newline_types) & re_dict.keys()
+        self.ignore_types = frozenset(ignore_types) & re_dict.keys()
+        self.always_accept = frozenset(always_accept) & re_dict.keys()
+        self.postlexer = postlexer
+
+    @classmethod
+    def from_conf(cls, conf: "LexerConf"):
+        terminals = list(conf.terminals)
+        assert all(isinstance(t, TerminalDef) for t in terminals), terminals
+
+        for t in terminals:
+            assert t.pattern.min_width > 0, (
+                "Lexer does not allow zero-width terminals. (%s: %s)"
+                % (t.name, t.pattern)
+            )
+
+        ignore_types = set(conf.ignore)
+        newline_types = set(
+            t.name for t in terminals if _regexp_has_newline(t.pattern.to_regexp())
+        )
+        always_accept = set(conf.postlex.always_accept) if conf.postlex else set()
+
+        terminals.sort(
+            key=lambda x: (
+                -x.priority,
+                (x.pattern.type == "re"),
+                -x.pattern.max_width,
+                -len(x.pattern.value),
+                x.name,
+            )
+        )
+
+        terminals_regex = {t.name: t.pattern.to_regexp() for t in terminals}
+        re_dict = {
+            name: re.compile(regexp, conf.g_regex_flags)
+            for name, regexp in terminals_regex.items()
+        }
+
+        # self.use_bytes = conf.use_bytes
+        return cls(
+            re_dict,
+            newline_types=newline_types,
+            ignore_types=ignore_types,
+            always_accept=always_accept,
+            postlexer=conf.postlex if conf.postlex is not None else IdPostLex(),
+        )
+
+    def match(self, text: str, pos: int) -> Optional[Tuple[str, str]]:
+        res_value = ""
+        res_name = None
+        for name, pattern in self.re_dict.items():
+            m = pattern.match(text, pos)
+            if m and len(res_value) < len(m.group(0)):
+                res_value = m.group(0)
+                res_name = name
+        if res_name:
+            return res_value, res_name
+
+    def next_token(self, text: str, line_ctr: LineCounter) -> Token:
+        res = self.match(text, line_ctr.char_pos)
+        if not res:
+            allowed = set(self.re_dict.keys()) - self.ignore_types
+            raise UnexpectedCharacters(
+                text, line_ctr.char_pos, line_ctr.line, line_ctr.column, allowed=allowed
+            )
+
+        value, name = res
+
+        return Token(
+            name,
+            value,
+            start_pos=line_ctr.char_pos,
+            line=line_ctr.line,
+            column=line_ctr.column,
+            end_pos=line_ctr.char_pos + len(value),
+        )
+
+    def lex(self, text: str) -> Iterator[Token]:
+        line_ctr = LineCounter("\n")
+
+        while line_ctr.char_pos < len(text):
+            tok = self.next_token(text, line_ctr)
+
+            line_ctr.feed(tok.value, test_newline=(tok.type in self.newline_types))
+
+            tok.end_line, tok.end_column, tok.end_pos = (
+                line_ctr.line,
+                line_ctr.column,
+                line_ctr.char_pos,
+            )
+
+            if tok.type not in self.ignore_types:
+                yield tok
+
+
 @dataclass
 class FSMLexerState:
     text: str
@@ -629,7 +741,7 @@ class FSMScanner:
             return res_name, res_match
 
 
-class FSMLexer:
+class FSMLexer(Lexer):
     def __init__(
         self,
         fsm_dict: Dict[str, FSM],

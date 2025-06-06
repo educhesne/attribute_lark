@@ -21,7 +21,7 @@ from .utils import (
     small_factors,
     OrderedSet,
 )
-from .lexer import Token, TerminalDef, PatternStr, PatternRE, Pattern, FSMLexer
+from .lexer import Token, TerminalDef, PatternStr, PatternRE, Pattern, RELexer
 from .parsers.parser import Parser
 from .parsers.pushdown_automata import PushDownAutomata
 
@@ -109,23 +109,22 @@ TERMINALS = {
     "_RPAR": r"\)",
     "_LBRA": r"\[",
     "_RBRA": r"\]",
-    "_LBRACE": r"\{",  #  r"\{(?!\{)",
-    "_RBRACE": r"\}",  #   r"\}(?!\})",
+    "_LBRACE": r"\{(?!\{)",
+    "_RBRACE": r"\}(?!\})",
     "_LLBRACE": r"\{\{",
     "_RRBRACE": r"\}\}",
-    "OP": "[+*]|[?]",  #  "[+*]|[?](?![a-z_])",
+    "OP": "[+*]|[?](?![a-z_])",
     "_COLON": ":",
     "_COMMA": ",",
     "_OR": r"\|",
     "_DOT": r"\.",
     "_DOTDOT": r"\.\.",
     "TILDE": "~",
-    "RULE_MODIFIERS": "(!|![?]?|[?]!?)",  #   "(!|![?]?|[?]!?)(?=[_a-z])",
+    "RULE_MODIFIERS": "(!|![?]?|[?]!?)(?=[_a-z])",
     "RULE": "_?[a-z][_a-z0-9]*",
     "TERMINAL": "_?[A-Z][_A-Z0-9]*",
     "STRING": r'"(\\"|\\\\|[^"\n])*?"i?',
-    "REGEXP": r"/(\\/|\\\\|[^/])*?/[%s]*"
-    % _RE_FLAGS,  #   r"/(?!/)(\\/|\\\\|[^/])*?/[%s]*" % _RE_FLAGS,
+    "REGEXP": r"/(?!/)(\\/|\\\\|[^/])*?/[%s]*" % _RE_FLAGS,
     "_NL": r"(\r?\n)+\s*",
     "_NL_OR": r"(\r?\n)+\s*\|",
     "WS": r"[ \t]+",
@@ -1232,7 +1231,7 @@ def _get_parser():
         lexer_conf = LexerConf(terminals, ["WS", "COMMENT", "BACKSLASH"])
         parser_conf = ParserConf(rules, callback, ["start"], None)
         PDA = PushDownAutomata.from_parser_conf(parser_conf)
-        lexer = FSMLexer.from_conf(lexer_conf)
+        lexer = RELexer.from_conf(lexer_conf)
         parser = Parser(PDA, lexer)
         _get_parser.cache = parser
         return _get_parser.cache

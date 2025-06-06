@@ -1,4 +1,3 @@
-
 from typing import (
     List,
     Dict,
@@ -92,7 +91,7 @@ class AttributeLarkOptions(Serialize):
         "priority": "normal",
         "propagate_positions": False,
         "edit_terminals": None,
-        'g_regex_flags': 0,
+        "g_regex_flags": 0,
         "ordered_sets": True,
         "import_paths": [],
         "source_path": None,
@@ -169,8 +168,9 @@ class AttributeLark(Serialize):
         self.options = AttributeLarkOptions(options)
 
         # Compile grammar and prepare terminals
-        terminals_to_keep = (set(self.options.postlex.always_accept)
-                           if self.options.postlex else set())
+        terminals_to_keep = (
+            set(self.options.postlex.always_accept) if self.options.postlex else set()
+        )
 
         self.terminals, self.rules, self.ignore_tokens, self.python_header = (
             self.grammar.compile(self.options.start, terminals_to_keep)
@@ -201,7 +201,9 @@ class AttributeLark(Serialize):
         self.parser = Parser(self.PDA, self.lexer)
         self.interactive_parser = InteractiveParser(self.PDA, self.lexer)
 
-    def _load_grammar(self, grammar_str: str, grammar_name: str = "<?>", **options) -> Grammar:
+    def _load_grammar(
+        self, grammar_str: str, grammar_name: str = "<?>", **options
+    ) -> Grammar:
         """Create a Grammar instance from a grammar string."""
         keep_all_tokens = options.get("keep_all_tokens", False)
         import_paths = options.get("import_paths", None)
@@ -214,7 +216,13 @@ class AttributeLark(Serialize):
         return grammar
 
     @classmethod
-    def open_from_package(cls, package: str, grammar_path: str, search_paths: 'Sequence[str]'=[""], **options):
+    def open_from_package(
+        cls,
+        package: str,
+        grammar_path: str,
+        search_paths: "Sequence[str]" = [""],
+        **options,
+    ):
         """Create an instance of Lark with the grammar loaded from within the package `package`.
         This allows grammar loading from zipapps.
 
@@ -226,9 +234,9 @@ class AttributeLark(Serialize):
         """
         package_loader = FromPackageLoader(package, search_paths)
         full_path, text = package_loader(None, grammar_path)
-        options.setdefault('source_path', full_path)
-        options.setdefault('import_paths', [])
-        options['import_paths'].append(package_loader)
+        options.setdefault("source_path", full_path)
+        options.setdefault("import_paths", [])
+        options["import_paths"].append(package_loader)
         return cls(text, **options)
 
     def _prepare_callbacks(self) -> ParserCallbacks:
@@ -236,7 +244,7 @@ class AttributeLark(Serialize):
             self.rules,
             Tree,
             self.options.propagate_positions,
-            True,                  # maybe_placeholders
+            True,  # maybe_placeholders
         ).create_callback(None)
         return callbacks
 
@@ -260,7 +268,9 @@ class AttributeLark(Serialize):
         """Parse input text and return (parse_tree, attributes)."""
         return self.parser.parse(text, start=start)
 
-    def parse_interactive(self, text: str, start: Optional[str] = None) -> List[InteractiveParserState]:
+    def parse_interactive(
+        self, text: str, start: Optional[str] = None
+    ) -> List[InteractiveParserState]:
         """Parse text in interactive mode, returning parser states."""
         return self.interactive_parser.parse_interactive(text, start=start)
 

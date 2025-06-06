@@ -388,12 +388,13 @@ class PushDownAutomata(Generic[StateT]):
 
     def feed_eos(self, state: PDAState[StateT]) -> PDAState[StateT]:
         eos_token = Token("$END", "", 0, 1, 1)
-        while True:
+
+        while state.state_id != state.final_state:
             action = self.get_next_action(state, eos_token)
             assert isinstance(action, Reduce)
             state = self.reduce_shift(state, action.rule)
-            if state.state_id == state.final_state:
-                return state
+
+        return state
 
     def get_lookahead_tokens(self, state: PDAState[StateT]) -> List[str]:
         return [

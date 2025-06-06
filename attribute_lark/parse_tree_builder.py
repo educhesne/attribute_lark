@@ -182,7 +182,9 @@ def _should_expand(sym):
     return not sym.is_term and sym.name.startswith("_")
 
 
-def maybe_create_child_filter(expansion, keep_all_tokens, _empty_indices: Optional[List[bool]]):
+def maybe_create_child_filter(
+    expansion, keep_all_tokens, _empty_indices: Optional[List[bool]]
+):
     # Prepare empty_indices as: How many Nones to insert at each index?
     if _empty_indices:
         assert _empty_indices.count(False) == len(expansion)
