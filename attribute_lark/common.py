@@ -3,7 +3,6 @@ import sys
 from typing import Callable, Collection, Dict, Optional, TYPE_CHECKING, List
 
 if TYPE_CHECKING:
-    from .attribute_lark import PostLex
     from .grammar import Rule
 
     if sys.version_info >= (3, 10):
@@ -32,7 +31,7 @@ class LexerConf(Serialize):
 
     terminals: Collection[TerminalDef]
     ignore: Collection[str]
-    postlex: "Optional[PostLex]"
+    always_accept: Collection[str]
     g_regex_flags: int
     skip_validation: bool
     lexer_type: Optional[_LexerArgType]
@@ -42,7 +41,7 @@ class LexerConf(Serialize):
         self,
         terminals: Collection[TerminalDef],
         ignore: Collection[str] = (),
-        postlex: "Optional[PostLex]" = None,
+        always_accept: Collection[str] = (),
         g_regex_flags: int = 0,
         skip_validation: bool = False,
         use_bytes: bool = False,
@@ -52,7 +51,7 @@ class LexerConf(Serialize):
         self.terminals_by_name = {t.name: t for t in self.terminals}
         assert len(self.terminals) == len(self.terminals_by_name)
         self.ignore = ignore
-        self.postlex = postlex
+        self.always_accept = always_accept
         self.g_regex_flags = g_regex_flags
         self.skip_validation = skip_validation
         self.strict = strict
@@ -65,7 +64,7 @@ class LexerConf(Serialize):
         return type(self)(
             deepcopy(self.terminals, memo),
             deepcopy(self.ignore, memo),
-            deepcopy(self.postlex, memo),
+            deepcopy(self.always_accept, memo),
             deepcopy(self.g_regex_flags, memo),
             deepcopy(self.skip_validation, memo),
         )

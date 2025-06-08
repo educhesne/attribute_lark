@@ -15,7 +15,6 @@ from typing import (
     overload,
     Tuple,
     List,
-    Iterable,
 )
 import warnings
 import interegular
@@ -550,19 +549,24 @@ class PostLex(ABC):
     def process(self, stream: Iterator[Token]) -> Iterator[Token]:
         raise NotImplementedError
 
-    always_accept: Iterable[str] = ()
+    @abstractmethod
+    def start(self):
+        raise NotImplementedError
+
+    always_accept: Collection[str] = ()
 
 
 class IdPostLex(PostLex):
     def process(self, stream):
         return stream
 
-    always_accept: Iterable[str] = ()
+    def start(self):
+        pass
+
+    always_accept: Collection[str] = ()
 
 
 class Lexer(ABC):
-    postlexer: PostLex
-
     @abstractmethod
     def lex(self, text: str) -> Iterator[Token]: ...
 
@@ -574,13 +578,11 @@ class RELexer(Lexer):
         newline_types: set[str] = set(),
         ignore_types: set[str] = set(),
         always_accept: set[str] = set(),
-        postlexer: PostLex = IdPostLex(),
     ):
         self.re_dict = re_dict
         self.newline_types = frozenset(newline_types) & re_dict.keys()
         self.ignore_types = frozenset(ignore_types) & re_dict.keys()
         self.always_accept = frozenset(always_accept) & re_dict.keys()
-        self.postlexer = postlexer
 
     @classmethod
     def from_conf(cls, conf: "LexerConf"):
@@ -597,7 +599,7 @@ class RELexer(Lexer):
         newline_types = set(
             t.name for t in terminals if _regexp_has_newline(t.pattern.to_regexp())
         )
-        always_accept = set(conf.postlex.always_accept) if conf.postlex else set()
+        always_accept = set(conf.always_accept)
 
         terminals.sort(
             key=lambda x: (
@@ -621,7 +623,6 @@ class RELexer(Lexer):
             newline_types=newline_types,
             ignore_types=ignore_types,
             always_accept=always_accept,
-            postlexer=conf.postlex if conf.postlex is not None else IdPostLex(),
         )
 
     def match(self, text: str, pos: int) -> Optional[Tuple[str, str]]:
@@ -748,7 +749,6 @@ class FSMLexer(Lexer):
         newline_types: set[str] = set(),
         ignore_types: set[str] = set(),
         always_accept: set[str] = set(),
-        postlexer: PostLex = IdPostLex(),
     ):
         self.fsm_dict = fsm_dict
         self.scanner = FSMScanner(fsm_dict)
@@ -761,8 +761,6 @@ class FSMLexer(Lexer):
         self._cached_initial_states = {
             name: (0, fsm.initial) for name, fsm in fsm_dict.items()
         }
-
-        self.postlexer = postlexer
 
     @classmethod
     def from_conf(cls, conf: "LexerConf", check_collisions: List[set[str]] = []):
@@ -779,7 +777,7 @@ class FSMLexer(Lexer):
         newline_types = set(
             t.name for t in terminals if _regexp_has_newline(t.pattern.to_regexp())
         )
-        always_accept = set(conf.postlex.always_accept) if conf.postlex else set()
+        always_accept = set(conf.always_accept)
 
         terminals.sort(
             key=lambda x: (
@@ -815,7 +813,6 @@ class FSMLexer(Lexer):
             newline_types=newline_types,
             ignore_types=ignore_types,
             always_accept=always_accept,
-            postlexer=conf.postlex if conf.postlex is not None else IdPostLex(),
         )
 
     def initial_dict_states(

@@ -191,15 +191,17 @@ class AttributeLark(Serialize):
         self.lexer_conf = LexerConf(
             self.terminals,
             self.ignore_tokens,
-            self.options.postlex,
+            self.options.postlex.always_accept if self.options.postlex else (),
             self.options.g_regex_flags,
             strict=self.options.strict,
         )
         self.lexer = FSMLexer.from_conf(
             self.lexer_conf, check_collisions=collisions_to_check
         )
-        self.parser = Parser(self.PDA, self.lexer)
-        self.interactive_parser = InteractiveParser(self.PDA, self.lexer)
+        self.parser = Parser(self.PDA, self.lexer, self.options.postlex)
+        self.interactive_parser = InteractiveParser(
+            self.PDA, self.lexer, self.options.postlex
+        )
 
     def _load_grammar(
         self, grammar_str: str, grammar_name: str = "<?>", **options
