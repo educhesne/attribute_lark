@@ -6,3 +6,26 @@ description = "LALR(1) attribute parser"
 readme = "README.md"
 requires-python = ">=3.8"
 dependencies = ["interegular>=0.3.1,<0.4.0"]
+
+[tool.setuptools]
+packages = [
+    "attribute_lark",
+    "attribute_lark.parsers",
+    "attribute_lark.tools",
+    "attribute_lark.grammars",
+    "attribute_lark.__pyinstaller",
+]
+include-package-data = true
+
+[tool.setuptools.package-data]
+"*" = ["*.lark"]
+lark = ["py.typed"]
+
+[tool.mypy]
+files = "attribute_lark"
+python_version = "3.8"
+show_error_codes = true
+enable_error_code = ["ignore-without-code", "unused-ignore"]
+exclude = [
+  "^attribute_lark/__pyinstaller",
+]
